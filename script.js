@@ -27,6 +27,10 @@
    coordonnées de scène (0–100 %) et sont affichés à travers la vue. Le zoom ne
    change donc rien à la composition.
 
+   Valider : dessine le rendu à plat (image JPEG), puis ajoute au panier Shopify la variante
+   de la chaîne (avec l'image en propriété « Rendu ») et les variantes des charms. Toutes les
+   lignes portent le même numéro « Bijou ». Hors Shopify (prototype), affiche juste le rendu.
+
    Plusieurs configurateurs par page possibles. Dans l'éditeur de thème Shopify, une
    section est (re)montée sur shopify:section:load et démontée sur shopify:section:unload.
 
@@ -59,6 +63,7 @@
       live: '[data-jewel-live]',
       info: '[data-jewel-info]',
       zoom: '[data-jewel-zoom]',
+      validate: '[data-jewel-action="validate"]',
     },
     defaultStageCm: 18,      // si une variante n'a pas de data-stage-cm
     defaultCharmCm: 1.5,     // si un charm n'a pas de data-width-cm
@@ -81,6 +86,26 @@
     viewWheelZoomSpeed: 0.01, // Ctrl + molette ou pincement trackpad, hors d'un charm
     viewWheelMaxDelta: 30,   // px : borne un cran de molette souris, sinon le zoom saute d'un coup
     zoomAnimationMs: 250,    // un peu plus que la transition CSS (.is-zoom-animating)
+    renderSize: 1200,        // px : côté de l'image du rendu jointe à la commande
+    renderQuality: 0.9,      // qualité JPEG du rendu
+  };
+
+  /** Textes de la fenêtre de confirmation et du bouton Valider. */
+  const TEXTS = {
+    adding: 'Ajout en cours…',
+    addedTitle: 'Votre bijou a été ajouté au panier',
+    addedText: 'Vous pouvez continuer vos achats ou voir votre panier.',
+    viewCart: 'Voir le panier',
+    continue: 'Continuer',
+    close: 'Fermer',
+    renderAlt: 'Aperçu de votre bijou',
+    missingTitle: 'Votre bijou n’est pas complet',
+    missingText: 'Choisissez une chaîne et un support avant de valider.',
+    errorTitle: 'Impossible d’ajouter au panier',
+    cartError: 'Une erreur est survenue. Réessayez dans un instant.',
+    renderMissing: 'Image indisponible',
+    prototypeTitle: 'Aperçu du rendu',
+    prototypeText: 'Prototype : sur la boutique, ce bijou serait ajouté au panier avec cette image.',
   };
 
   const PLACED_SELECTOR = '.placed';
@@ -131,6 +156,31 @@
     return delta;
   }
 
+  /** Charge une image utilisable dans un canvas (même origine, ou serveur qui autorise CORS). */
+  function loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error(`Image non chargée : ${src}`));
+      img.src = src;
+    });
+  }
+
+  /** Valeur CSS url("…") → l'adresse seule. */
+  function cssUrl(value) {
+    const match = /url\((['"]?)(.*?)\1\)/.exec(value || '');
+    return match ? match[2] : '';
+  }
+
+  /** Dessine une image centrée dans un carré : 'cover' (le remplit) ou 'contain' (entière). */
+  function drawFitted(ctx, img, size, mode) {
+    const width = img.naturalWidth || size;
+    const height = img.naturalHeight || size;
+    const ratio = (mode === 'cover' ? Math.max : Math.min)(size / width, size / height);
+    ctx.drawImage(img, (size - width * ratio) / 2, (size - height * ratio) / 2, width * ratio, height * ratio);
+  }
+
   // « Argenté », « argente », « ARGENTÉ » → même tag
   const normalizeTag = (tag) => tag.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
   const tagsOf = (el) => (el.dataset.tags || '').split(',').map(normalizeTag).filter(Boolean);
@@ -152,6 +202,7 @@
     const charmFilter = app.querySelector(CONFIG.selectors.charmFilter);
     const charmEmpty = app.querySelector(CONFIG.selectors.charmEmpty);
     const zoomControls = app.querySelector(CONFIG.selectors.zoom);
+    const validateButton = app.querySelector(CONFIG.selectors.validate);
     const live = app.querySelector(CONFIG.selectors.live);
 
     const chainEls = chainList ? [...chainList.querySelectorAll(CONFIG.selectors.chain)] : [];
@@ -195,6 +246,10 @@
     let gesture = null;       // manipulation en cours sur la scène (un charm, ou la vue si uid === null)
     let lastTap = { uid: null, time: 0 };
     let zoomAnimationTimer = 0;
+    let validating = false;   // ajout au panier en cours
+    let validateLabel = '';
+    let dialog = null;        // fenêtre de confirmation, créée au premier besoin
+    let dialogImageUrl = null;
 
     /* ---------- Coordonnées : écran ↔ cadre (ce qu'on voit) ↔ scène (hors zoom) ---------- */
 
@@ -553,10 +608,12 @@
       item.el.style.zIndex = String(item.z);
     }
 
-    /** État exportable (ex. futur ajout au panier Shopify : variante de la chaîne + variantes des charms). */
+    /** Charms posés, du plus bas au plus haut dans la superposition. */
+    const charmsInOrder = () => [...placed.values()].sort((a, b) => a.z - b.z);
+
+    /** État exportable (sert à l'ajout au panier : variante de la chaîne + variantes des charms). */
     function getComposition() {
-      const charms = [...placed.values()]
-        .sort((a, b) => a.z - b.z)
+      const charms = charmsInOrder()
         .map((item, index) => ({
           productId: item.productId,
           variantId: item.variantId,
@@ -1060,7 +1117,206 @@
     }
 
     /* ======================================================================
-       11. Initialisation
+       11. Valider : image du rendu, ajout au panier Shopify, fenêtre de confirmation
+       ====================================================================== */
+
+    /**
+     * Dessine la composition à plat, sans le zoom de l'aperçu, comme la scène l'affiche en CSS :
+     * dégradé + image de fond, support en « contain », charms centrés sur (x, y) et pivotés.
+     * Échoue si le support ou un charm ne se charge pas (le rendu serait trompeur).
+     */
+    async function renderComposition() {
+      const size = CONFIG.renderSize;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      const styles = getComputedStyle(stage);
+
+      const gradient = ctx.createRadialGradient(size * 0.5, size * 0.38, 0, size * 0.5, size * 0.38, size * 0.8);
+      gradient.addColorStop(0, styles.getPropertyValue('--jewel-stage-light').trim() || '#fbfcfd');
+      gradient.addColorStop(0.78, styles.getPropertyValue('--jewel-stage-dark').trim() || '#e2e7ee');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, size, size);
+
+      const charms = charmsInOrder();
+      const backdropUrl = cssUrl(styles.getPropertyValue('--jewel-backdrop'));
+      const [backdrop, support, ...charmImages] = await Promise.all([
+        backdropUrl ? loadImage(backdropUrl).catch(() => null) : null, // fond facultatif
+        selection.variant && selection.variant.image ? loadImage(selection.variant.image) : null,
+        ...charms.map((item) => loadImage(item.image)),
+      ]);
+
+      if (backdrop) drawFitted(ctx, backdrop, size, 'cover');
+
+      // Ombre portée légère, comme le drop-shadow de la scène
+      ctx.shadowColor = 'rgba(20, 30, 50, 0.25)';
+      ctx.shadowBlur = size * 0.006;
+      ctx.shadowOffsetY = size * 0.004;
+      if (support) drawFitted(ctx, support, size, 'contain');
+
+      charms.forEach((item, index) => {
+        const img = charmImages[index];
+        const width = (widthPercent(item) / 100) * size;
+        const height = width * ((img.naturalHeight || 1) / (img.naturalWidth || 1));
+        ctx.save();
+        ctx.translate((item.x / 100) * size, (item.y / 100) * size);
+        ctx.rotate((item.rotation * Math.PI) / 180);
+        ctx.drawImage(img, -width / 2, -height / 2, width, height);
+        ctx.restore();
+      });
+
+      // toBlob lève une erreur si une image d'une autre origine a « sali » le canvas : le rejet est capté par l'appelant.
+      return new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Rendu vide'))), 'image/jpeg', CONFIG.renderQuality);
+      });
+    }
+
+    /** Racine des adresses de la boutique (« / » ou « /en/ »…) ; null hors Shopify (prototype). */
+    const shopRoot = () => (window.Shopify && window.Shopify.routes && window.Shopify.routes.root) || null;
+
+    /** Requête vers l'API panier de Shopify ; lève une erreur avec le message de Shopify (ex. rupture de stock). */
+    async function cartRequest(path, body) {
+      const isForm = body instanceof FormData;
+      const response = await fetch(`${shopRoot()}${path}`, {
+        method: 'POST',
+        headers: isForm ? { Accept: 'application/json' } : { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: isForm ? body : JSON.stringify(body),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.description || data.message || TEXTS.cartError);
+      return data;
+    }
+
+    /**
+     * Ajoute le bijou au panier : d'abord la chaîne, avec l'image du rendu en fichier joint
+     * (envoi en multipart, comme un formulaire produit), puis les charms en une fois.
+     * Toutes les lignes portent le même numéro de bijou. Si les charms échouent, la chaîne est retirée.
+     */
+    async function addToCart(composition, image) {
+      const number = String(Date.now()).slice(-6);
+      const label = `n° ${number}`;
+
+      const chainLine = new FormData();
+      chainLine.append('id', composition.chain.variantId);
+      chainLine.append('quantity', '1');
+      chainLine.append('properties[Bijou]', label);
+      if (image) chainLine.append('properties[Rendu]', image, `bijou-${number}.jpg`);
+      else chainLine.append('properties[Rendu]', TEXTS.renderMissing);
+      const chainItem = await cartRequest('cart/add.js', chainLine);
+
+      // Deux fois le même charm sur le bijou → une ligne en quantité 2
+      const quantities = new Map();
+      composition.charms.forEach(({ variantId }) => {
+        if (variantId) quantities.set(variantId, (quantities.get(variantId) || 0) + 1);
+      });
+      if (quantities.size === 0) return;
+      try {
+        await cartRequest('cart/add.js', {
+          items: [...quantities].map(([id, quantity]) => ({ id: Number(id), quantity, properties: { Bijou: label } })),
+        });
+      } catch (error) {
+        await cartRequest('cart/change.js', { id: chainItem.key, quantity: 0 }).catch(() => {});
+        throw error;
+      }
+    }
+
+    /** Met à jour le compteur du panier dans l'en-tête (thèmes Shopify récents ; sans effet sinon). */
+    async function refreshCartBubble() {
+      const bubble = document.getElementById('cart-icon-bubble');
+      if (!bubble) return;
+      try {
+        const sections = await (await fetch(`${shopRoot()}?sections=cart-icon-bubble`)).json();
+        const html = sections['cart-icon-bubble'];
+        const fresh = html && new DOMParser().parseFromString(html, 'text/html').querySelector('.shopify-section');
+        if (fresh) bubble.innerHTML = fresh.innerHTML;
+      } catch (_) { /* compteur non mis à jour : sans gravité */ }
+    }
+
+    function createDialog() {
+      const el = document.createElement('dialog');
+      el.className = 'jewel-dialog';
+      el.innerHTML = `
+        <div class="jewel-dialog__body">
+          <img class="jewel-dialog__img" alt="${TEXTS.renderAlt}" hidden>
+          <p class="jewel-dialog__title"></p>
+          <p class="jewel-dialog__text"></p>
+          <div class="jewel-dialog__actions">
+            <a class="jewel-dialog__button" data-dialog-cart hidden>${TEXTS.viewCart}</a>
+            <button type="button" class="jewel-dialog__button jewel-dialog__button--secondary" data-dialog-close></button>
+          </div>
+        </div>`;
+      // Un clic hors du contenu (sur le voile) ferme aussi la fenêtre ; Échap est géré par <dialog>.
+      el.addEventListener('click', (e) => {
+        if (e.target === el || e.target.closest('[data-dialog-close]')) el.close();
+      });
+      el.addEventListener('close', () => {
+        if (dialogImageUrl) URL.revokeObjectURL(dialogImageUrl);
+        dialogImageUrl = null;
+      });
+      app.append(el); // dans .jewel-app pour en recevoir les styles ; showModal() l'affiche au premier plan
+      return el;
+    }
+
+    function showDialog({ title, text, image = null, cartUrl = null, closeLabel = TEXTS.close }) {
+      if (!dialog) dialog = createDialog();
+      if (dialogImageUrl) URL.revokeObjectURL(dialogImageUrl);
+      dialogImageUrl = image ? URL.createObjectURL(image) : null;
+
+      const img = dialog.querySelector('.jewel-dialog__img');
+      img.hidden = !dialogImageUrl;
+      if (dialogImageUrl) img.src = dialogImageUrl;
+      dialog.querySelector('.jewel-dialog__title').textContent = title;
+      dialog.querySelector('.jewel-dialog__text').textContent = text;
+      const cartLink = dialog.querySelector('[data-dialog-cart]');
+      cartLink.hidden = !cartUrl;
+      if (cartUrl) cartLink.href = cartUrl;
+      dialog.querySelector('[data-dialog-close]').textContent = closeLabel;
+      dialog.setAttribute('aria-label', title);
+      if (!dialog.open) dialog.showModal();
+    }
+
+    function setValidating(busy) {
+      validating = busy;
+      if (!validateButton) return;
+      validateButton.disabled = busy;
+      validateButton.textContent = busy ? TEXTS.adding : validateLabel;
+    }
+
+    async function onValidate() {
+      if (validating) return;
+      const composition = getComposition();
+      if (!composition.chain || !composition.chain.variantId) {
+        showDialog({ title: TEXTS.missingTitle, text: TEXTS.missingText });
+        return;
+      }
+
+      setValidating(true);
+      let image = null;
+      try {
+        image = await renderComposition();
+      } catch (error) {
+        console.warn('[JewelStage] Rendu impossible, ajout au panier sans image :', error);
+      }
+
+      try {
+        if (!shopRoot()) {
+          showDialog({ title: TEXTS.prototypeTitle, text: TEXTS.prototypeText, image });
+          return;
+        }
+        await addToCart(composition, image);
+        refreshCartBubble();
+        showDialog({ title: TEXTS.addedTitle, text: TEXTS.addedText, image, cartUrl: `${shopRoot()}cart`, closeLabel: TEXTS.continue });
+        announce(TEXTS.addedTitle);
+      } catch (error) {
+        showDialog({ title: TEXTS.errorTitle, text: error.message || TEXTS.cartError });
+      } finally {
+        setValidating(false);
+      }
+    }
+
+    /* ======================================================================
+       12. Initialisation
        ====================================================================== */
 
     function init() {
@@ -1116,6 +1372,10 @@
       stage.addEventListener('click', onStageClick);
       stage.addEventListener('focusin', onStageFocusIn);
       if (zoomControls) zoomControls.addEventListener('click', onZoomClick);
+      if (validateButton) {
+        validateLabel = validateButton.textContent;
+        validateButton.addEventListener('click', onValidate);
+      }
 
       document.addEventListener('keydown', onKeyDown, { signal });
       setupInfo();
@@ -1142,6 +1402,7 @@
         endCharmDrag();
         endGesture();
         stopZoomAnimation();
+        if (dialog && dialog.open) dialog.close();
         listeners.abort();
       },
     };
