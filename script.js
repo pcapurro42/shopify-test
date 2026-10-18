@@ -103,7 +103,7 @@
     missingText: 'Choisissez une chaîne et un support avant de valider.',
     errorTitle: 'Impossible d’ajouter au panier',
     cartError: 'Une erreur est survenue. Réessayez dans un instant.',
-    renderMissing: 'Image indisponible',
+    renderError: 'Une image n’a pas pu être chargée. Vérifiez votre connexion et réessayez.',
     prototypeTitle: 'Aperçu du rendu',
     prototypeText: 'Prototype : sur la boutique, ce bijou serait ajouté au panier avec cette image.',
   };
@@ -1201,8 +1201,7 @@
       chainLine.append('id', composition.chain.variantId);
       chainLine.append('quantity', '1');
       chainLine.append('properties[Bijou]', label);
-      if (image) chainLine.append('properties[Rendu]', image, `bijou-${number}.jpg`);
-      else chainLine.append('properties[Rendu]', TEXTS.renderMissing);
+      chainLine.append('properties[Rendu]', image, `bijou-${number}.jpg`);
       const chainItem = await cartRequest('cart/add.js', chainLine);
 
       // Deux fois le même charm sur le bijou → une ligne en quantité 2
@@ -1292,11 +1291,15 @@
       }
 
       setValidating(true);
-      let image = null;
+      let image;
       try {
         image = await renderComposition();
       } catch (error) {
-        console.warn('[JewelStage] Rendu impossible, ajout au panier sans image :', error);
+        // Sans l'image, le vendeur ne saurait pas quel bijou réaliser : pas d'ajout au panier.
+        console.warn('[JewelStage] Rendu impossible :', error);
+        showDialog({ title: TEXTS.errorTitle, text: TEXTS.renderError });
+        setValidating(false);
+        return;
       }
 
       try {
