@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jewel Stage — prototype</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+  <style>
+    /* Page de test uniquement : sur Shopify, la page (police, fond, marges) est gérée par le thème */
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #f4f6f9;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+  </style>
+</head>
+<body>
+  <!--
+    Racine du composant, avec des données de démonstration.
+    Version Shopify : shopify/sections/jewel-stage.liquid génère ce même HTML depuis les collections
+    du magasin ; style.css et script.js y sont collés tels quels (assets/jewel-stage.css et .js).
+    Toute modification du HTML ici est à reporter dans la section.
+    Le JS ne s'appuie que sur les attributs data-jewel-* et data-* ci-dessous.
+    Le fond de la scène (assets/scene/fond.svg) est intégré à la fin de style.css.
+  -->
+  <div class="jewel-app" data-jewel-app>
+
+    <header class="jewel-app__header">
+      <h1 class="jewel-app__title">Je crée mon bijou</h1>
+    </header>
+
+    <div class="jewel-app__main">
+
+      <!-- Aperçu : le support (variante choisie) + les charms déposés -->
+      <section class="stage-wrap" aria-label="Aperçu du bijou">
+        <div class="stage-frame">
+          <div class="stage" data-jewel-stage></div>
+
+          <!-- Zoom de l'aperçu (50 à 250 %) ; le bouton du milieu affiche le niveau et revient à 100 % -->
+          <div class="stage-zoom" role="group" aria-label="Zoom de l’aperçu" data-jewel-zoom>
+            <button type="button" class="stage-zoom__button" data-zoom="out" aria-label="Dézoomer">−</button>
+            <button type="button" class="stage-zoom__button stage-zoom__level" data-zoom="reset" aria-label="Revenir à 100 %">100&nbsp;%</button>
+            <button type="button" class="stage-zoom__button" data-zoom="in" aria-label="Zoomer">+</button>
+          </div>
+
+          <!-- Aide : au survol du « ? » (souris), ou au toucher / clavier (géré par le JS) -->
+          <div class="stage-info" data-jewel-info>
+            <button type="button" class="stage-info__button" aria-label="Aide : comment utiliser l’aperçu"
+                    aria-expanded="false" aria-controls="stage-info-panel">?</button>
+            <div class="stage-info__panel" id="stage-info-panel">
+              <div class="stage-info__content">
+                <ul class="stage-help stage-help--mouse">
+                  <li><strong>Ajouter</strong> : glissez un charm sur le bijou, ou cliquez dessus</li>
+                  <li><strong>Déplacer</strong> : glissez le charm, ou touches fléchées</li>
+                  <li><strong>Taille</strong> : poignée d’angle, molette, ou <kbd>+</kbd> / <kbd>−</kbd></li>
+                  <li><strong>Rotation</strong> : poignée du haut, <kbd>Maj</kbd> + molette, ou <kbd>R</kbd></li>
+                  <li><strong>Retirer</strong> : bouton ✕, double-clic, ou <kbd>Suppr</kbd></li>
+                  <li><strong>Désélectionner</strong> : clic dans le vide, ou <kbd>Échap</kbd></li>
+                  <li><strong>Zoom</strong> : boutons − / +, ou <kbd>Ctrl</kbd> + molette hors d’un charm ; glissez dans le vide pour vous déplacer</li>
+                </ul>
+                <ul class="stage-help stage-help--touch">
+                  <li><strong>Ajouter</strong> : glissez un charm vers le bijou, ou touchez-le</li>
+                  <li><strong>Déplacer</strong> : glissez le charm avec un doigt</li>
+                  <li><strong>Taille et rotation</strong> : pincez et tournez à deux doigts</li>
+                  <li><strong>Retirer</strong> : bouton ✕, ou touchez deux fois le charm</li>
+                  <li><strong>Zoom</strong> : boutons − / +, ou pincez hors d’un charm ; glissez dans le vide pour vous déplacer</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sans action pour l'instant ; plus tard : ajout au panier à partir de JewelStage.getComposition() -->
+        <button type="button" class="jewel-validate" data-jewel-action="validate">Valider</button>
+      </section>
+
+      <div class="steps">
+
+        <!-- ============ Étape 1 : la chaîne (un produit d'une collection) ============ -->
+        <section class="step" aria-labelledby="step-chain-title">
+          <header class="step__header">
+            <span class="step__number" aria-hidden="true">1</span>
+            <h2 class="step__title" id="step-chain-title">Choisissez votre chaîne</h2>
+            <span class="step__summary" data-jewel-summary="chain"></span>
+          </header>
+
+          <!-- Shopify : un produit de la collection des chaînes par carte (voir la section Liquid) -->
+          <div class="option-list" role="radiogroup" aria-labelledby="step-chain-title" data-jewel-chains>
+            <label class="option-card" data-jewel-chain data-id="2001" data-title="Forçat Or">
+              <input class="option-card__input" type="radio" name="jewel-chain" value="2001" checked>
+              <img class="option-card__img" src="assets/chaines/forcat-or.svg" alt="" loading="lazy">
+              <span class="option-card__title">Forçat Or</span>
+            </label>
+            <label class="option-card" data-jewel-chain data-id="2002" data-title="Perlée Argent">
+              <input class="option-card__input" type="radio" name="jewel-chain" value="2002">
+              <img class="option-card__img" src="assets/chaines/perlee-argent.svg" alt="" loading="lazy">
+              <span class="option-card__title">Perlée Argent</span>
+            </label>
+            <label class="option-card" data-jewel-chain data-id="2003" data-title="Corde Or Rose">
+              <input class="option-card__input" type="radio" name="jewel-chain" value="2003">
+              <img class="option-card__img" src="assets/chaines/corde-or-rose.svg" alt="" loading="lazy">
+              <span class="option-card__title">Corde Or Rose</span>
+            </label>
+          </div>
+        </section>
+
+        <!-- ============ Étape 2 : la forme (variantes de la chaîne choisie) ============ -->
+        <section class="step" aria-labelledby="step-variant-title">
+          <header class="step__header">
+            <span class="step__number" aria-hidden="true">2</span>
+            <h2 class="step__title" id="step-variant-title">Choisissez le support</h2>
+            <span class="step__summary" data-jewel-summary="variant"></span>
+          </header>
+
+          <!--
+            Toutes les variantes de toutes les chaînes ; le JS n'affiche que celles de la chaîne choisie
+            (data-chain-id = id du produit de l'étape 1).
+            data-image    : image de la variante, affichée sur toute la scène (carrée)
+            data-stage-cm : largeur réelle représentée par cette image, en cm (sert à mettre les charms à l'échelle)
+            data-price    : prix en centimes (pour le JS) ; le prix affiché est formaté par Liquid (| money)
+          -->
+          <div class="option-list option-list--shapes" role="radiogroup" aria-labelledby="step-variant-title" data-jewel-variants>
+            <!-- Forçat Or -->
+            <label class="option-card option-card--shape" data-jewel-variant data-chain-id="2001"
+                   data-id="3001" data-title="Bracelet" data-image="assets/chaines/forcat-or--bracelet.svg" data-stage-cm="9" data-price="3900">
+              <input class="option-card__input" type="radio" name="jewel-variant" value="3001">
+              <img class="option-card__img" src="assets/chaines/forcat-or--bracelet.svg" alt="" loading="lazy">
+              <span class="option-card__title">Bracelet</span>
+              <span class="option-card__price">39,00&nbsp;€</span>
+            </label>
+            <label class="option-card option-card--shape" data-jewel-variant data-chain-id="2001"
+                   data-id="3002" data-title="Collier" data-image="assets/chaines/forcat-or--collier.svg" data-stage-cm="18" data-price="5900">
+              <input class="option-card__input" type="radio" name="jewel-variant" value="3002" checked>
+              <img class="option-card__img" src="assets/chaines/forcat-or--collier.svg" alt="" loading="lazy">
+              <span class="option-card__title">Collier</span>
+              <span class="option-card__price">59,00&nbsp;€</span>
+            </label>
+            <label class="option-card option-card--shape" data-jewel-variant data-chain-id="2001"
+                   data-id="3003" data-title="Chaîne de cheville" data-image="assets/chaines/forcat-or--cheville.svg" data-stage-cm="13" data-price="4500">
+              <input class="option-card__input" type="radio" name="jewel-variant" value="3003">
+              <img class="option-card__img" src="assets/chaines/forcat-or--cheville.svg" alt="" loading="lazy">
+              <span class="option-card__title">Chaîne de cheville</span>
+              <span class="option-card__price">45,00&nbsp;€</span>
+            </label>
+            <label class="option-card option-card--shape" data-jewel-variant data-chain-id="2001"
+                   data-id="3004" data-title="Porte-clé" data-image="assets/chaines/forcat-or--porte-cle.svg" data-stage-cm="10" data-price="2900">
+              <input class="option-card__input" type="radio" name="jewel-variant" value="3004">
+              <img class="option-card__img" src="assets/chaines/forcat-or--porte-cle.svg" alt="" loading="lazy">
+              <span class="option-card__title">Porte-clé</span>
+              <span class="option-card__price">29,00&nbsp;€</span>
+            </label>
+            <label class="option-card option-card--shape" data-jewel-variant data-chain-id="2001"
+                   data-id="3005" data-title="Double collier" data-image="assets/chaines/forcat-or--double-collier.svg" data-stage-cm="20" data-price="8900">
+              <input class="option-card__input" type="radio" name="jewel-variant" value="3005">
+              <img class="option-card__img" src="assets/chaines/forcat-or--double-collier.svg" alt="" loading="lazy">
+              <span class="option-card__title">Double collier</span>
+              <span class="option-card__price">89,00&nbsp;€</span>
+            </label>
+            <label class="option-card option-card--shape" data-jewel-variant data-chain-id="2001"
+                   data-id="3006" data-title="Sautoir" data-image="assets/chaines/forcat-or--sautoir.svg" data-stage-cm="24" data-price="7900">
+              <input class="option-card__input" type="radio" name="jewel-variant" value="3006">
+              <img class="option-card__img" src="assets/chaines/forcat-or--sautoir.svg" alt="" loading="lazy">
+              <span class="option-card__title">Sautoir</span>
+              <span class="option-card__price">79,00&nbsp;€</span>
+            </label>
+            <label class="option-card option-card--shape" data-jewel-variant data-chain-id="2001"
+                   data-id="3007" data-title="Collier à rallonge" data-image="assets/chaines/forcat-or--collier-rallonge.svg" data-stage-cm="20" data-price="6500">
+              <input class="option-card__input" type="radio" name="jewel-variant" value="3007">
+              <img class="option-card__img" src="assets/chaines/forcat-or--collier-rallonge.svg" alt="" loading="lazy">
+              <span class="option-card__title">Collier à rallonge</span>
+              <span class="option-card__price">65,00&nbsp;€</span>
+            </label>
+            <!-- Perlée Argent -->
+            <label class="option-card option-card--shape" data-jewel-variant data-chain-id="2002"
+                   data-id="3008" data-title="Bracelet" data-image="assets/chaines/perlee-argent--bracelet.svg" data-stage-cm="9" data-price="3500" hidden>
+              <input class="option-card__input" type="radio" name="jewel-variant" value="3008">
+              <img class="option-card__img" src="assets/chaines/perlee-argent--bracelet.svg" alt="" loading="lazy">
+              <span class="option-card__title">Bracelet</span>
+              <span class="option-card__price">35,00&nbsp;€</span>
+            </label>
+            <label class="option-card option-card--shape" data-jewel-variant data-chain-id="2002"
+                   data-id="3009" data-title="Collier" data-image="assets/chaines/perlee-argent--collier.svg" data-stage-cm="18" data-price="4900" hidden>
+              <input class="option-card__input" type="radio" name="jewel-variant" value="3009">
+              <img class="option-card__img" src="assets/chaines/perlee-argent--collier.svg" alt="" loading="lazy">
+              <span class="option-card__title">Collier</span>
+              <span class="option-card__price">49,00&nbsp;€</span>
+            </label>
+            <label class="option-card option-card--shape" data-jewel-variant data-chain-id="2002"
+                   data-id="3010" data-title="Chaîne de cheville" data-image="assets/chaines/perlee-argent--cheville.svg" data-stage-cm="13" data-price="3900" hidden>
+              <input class="option-card__input" type="radio" name="jewel-variant" value="3010">
+              <img class="option-card__img" src="assets/chaines/perlee-argent--cheville.svg" alt="" loading="lazy">
+              <span class="option-card__title">Chaîne de cheville</span>
+              <span class="option-card__price">39,00&nbsp;€</span>
+            </label>
+            <label class="option-card option-card--shape" data-jewel-variant data-chain-id="2002"
+                   data-id="3011" data-title="Double collier" data-image="assets/chaines/perlee-argent--double-collier.svg" data-stage-cm="20" data-price="7500" hidden>
+              <input class="option-card__input" type="radio" name="jewel-variant" value="3011">
+              <img class="option-card__img" src="assets/chaines/perlee-argent--double-collier.svg" alt="" loading="lazy">
+              <span class="option-card__title">Double collier</span>
+              <span class="option-card__price">75,00&nbsp;€</span>
+            </label>
+            <!-- Corde Or Rose -->
+            <label class="option-card option-card--shape" data-jewel-variant data-chain-id="2003"
+                   data-id="3012" data-title="Bracelet" data-image="assets/chaines/corde-or-rose--bracelet.svg" data-stage-cm="9" data-price="4200" hidden>
+              <input class="option-card__input" type="radio" name="jewel-variant" value="3012">
+              <img class="option-card__img" src="assets/chaines/corde-or-rose--bracelet.svg" alt="" loading="lazy">
+              <span class="option-card__title">Bracelet</span>
+              <span class="option-card__price">42,00&nbsp;€</span>
+            </label>
+            <label class="option-card option-card--shape" data-jewel-variant data-chain-id="2003"
+                   data-id="3013" data-title="Collier" data-image="assets/chaines/corde-or-rose--collier.svg" data-stage-cm="18" data-price="6200" hidden>
+              <input class="option-card__input" type="radio" name="jewel-variant" value="3013">
+              <img class="option-card__img" src="assets/chaines/corde-or-rose--collier.svg" alt="" loading="lazy">
+              <span class="option-card__title">Collier</span>
+              <span class="option-card__price">62,00&nbsp;€</span>
+            </label>
+            <label class="option-card option-card--shape" data-jewel-variant data-chain-id="2003"
+                   data-id="3014" data-title="Porte-clé" data-image="assets/chaines/corde-or-rose--porte-cle.svg" data-stage-cm="10" data-price="3200" hidden>
+              <input class="option-card__input" type="radio" name="jewel-variant" value="3014">
+              <img class="option-card__img" src="assets/chaines/corde-or-rose--porte-cle.svg" alt="" loading="lazy">
+              <span class="option-card__title">Porte-clé</span>
+              <span class="option-card__price">32,00&nbsp;€</span>
+            </label>
+            <label class="option-card option-card--shape" data-jewel-variant data-chain-id="2003"
+                   data-id="3015" data-title="Sautoir" data-image="assets/chaines/corde-or-rose--sautoir.svg" data-stage-cm="24" data-price="8500" hidden>
+              <input class="option-card__input" type="radio" name="jewel-variant" value="3015">
+              <img class="option-card__img" src="assets/chaines/corde-or-rose--sautoir.svg" alt="" loading="lazy">
+              <span class="option-card__title">Sautoir</span>
+              <span class="option-card__price">85,00&nbsp;€</span>
+            </label>
+            <label class="option-card option-card--shape" data-jewel-variant data-chain-id="2003"
+                   data-id="3016" data-title="Collier à rallonge" data-image="assets/chaines/corde-or-rose--collier-rallonge.svg" data-stage-cm="20" data-price="6900" hidden>
+              <input class="option-card__input" type="radio" name="jewel-variant" value="3016">
+              <img class="option-card__img" src="assets/chaines/corde-or-rose--collier-rallonge.svg" alt="" loading="lazy">
+              <span class="option-card__title">Collier à rallonge</span>
+              <span class="option-card__price">69,00&nbsp;€</span>
+            </label>
+          </div>
+        </section>
+
+        <!-- ============ Étape 3 : les charms (produits d'une collection) ============ -->
+        <section class="step" aria-labelledby="step-charms-title">
+          <header class="step__header">
+            <span class="step__number" aria-hidden="true">3</span>
+            <h2 class="step__title" id="step-charms-title">Ajoutez vos charms</h2>
+            <span class="step__summary" data-jewel-summary="charms"></span>
+          </header>
+
+          <!--
+            Filtre par balise Shopify : value = une ou plusieurs balises séparées par des virgules
+            (casse et accents ignorés), "" = tous.
+          -->
+          <div class="charm-filter" role="radiogroup" aria-label="Filtrer les charms" data-jewel-charm-filter>
+            <label class="charm-filter__option">
+              <input class="charm-filter__input" type="radio" name="jewel-charm-filter" value="" checked>
+              <span class="charm-filter__label">Tous</span>
+            </label>
+            <label class="charm-filter__option">
+              <input class="charm-filter__input" type="radio" name="jewel-charm-filter" value="argenté">
+              <span class="charm-filter__label"><span class="charm-filter__swatch charm-filter__swatch--silver" aria-hidden="true"></span>Argenté</span>
+            </label>
+            <label class="charm-filter__option">
+              <input class="charm-filter__input" type="radio" name="jewel-charm-filter" value="doré">
+              <span class="charm-filter__label"><span class="charm-filter__swatch charm-filter__swatch--gold" aria-hidden="true"></span>Doré</span>
+            </label>
+          </div>
+
+          <!--
+            Shopify : un produit de la collection des charms par carte (voir la section Liquid).
+            data-variant-id : la variante à ajouter au panier plus tard
+            data-width-cm   : largeur réelle de l'image du charm, en cm (sinon valeur par défaut du JS)
+            data-price      : prix en centimes (pour le JS) ; le prix affiché est formaté par Liquid (| money)
+            data-tags       : tags du produit séparés par des virgules (utilisés par le filtre ci-dessus)
+          -->
+          <ul class="charm-list" data-jewel-charms>
+            <li class="charm-card" data-jewel-charm data-id="4001" data-variant-id="5001"
+                data-title="Cœur Rubis" data-image="assets/charms/coeur-rubis.svg" data-width-cm="1.6" data-price="1900" data-tags="doré">
+              <img class="charm-card__img" src="assets/charms/coeur-rubis.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Cœur Rubis</span>
+              <span class="charm-card__price">19,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4002" data-variant-id="5002"
+                data-title="Étoile Or" data-image="assets/charms/etoile-or.svg" data-width-cm="1.6" data-price="1500" data-tags="doré">
+              <img class="charm-card__img" src="assets/charms/etoile-or.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Étoile Or</span>
+              <span class="charm-card__price">15,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4003" data-variant-id="5003"
+                data-title="Lune Argent" data-image="assets/charms/lune-argent.svg" data-width-cm="1.5" data-price="1700" data-tags="argenté">
+              <img class="charm-card__img" src="assets/charms/lune-argent.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Lune Argent</span>
+              <span class="charm-card__price">17,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4004" data-variant-id="5004"
+                data-title="Goutte Émeraude" data-image="assets/charms/goutte-emeraude.svg" data-width-cm="1.2" data-price="2400" data-tags="argenté">
+              <img class="charm-card__img" src="assets/charms/goutte-emeraude.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Goutte Émeraude</span>
+              <span class="charm-card__price">24,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4005" data-variant-id="5005"
+                data-title="Trèfle Or Rose" data-image="assets/charms/trefle-or-rose.svg" data-width-cm="1.6" data-price="1800" data-tags="doré">
+              <img class="charm-card__img" src="assets/charms/trefle-or-rose.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Trèfle Or Rose</span>
+              <span class="charm-card__price">18,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4006" data-variant-id="5006"
+                data-title="Ovale Saphir" data-image="assets/charms/ovale-saphir.svg" data-width-cm="1.3" data-price="2200" data-tags="argenté">
+              <img class="charm-card__img" src="assets/charms/ovale-saphir.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Ovale Saphir</span>
+              <span class="charm-card__price">22,00&nbsp;€</span>
+            </li>
+            <!-- Copies de test (mêmes images) pour voir la grille avec beaucoup de charms : à supprimer -->
+            <li class="charm-card" data-jewel-charm data-id="4007" data-variant-id="5007"
+                data-title="Cœur Rubis 2" data-image="assets/charms/coeur-rubis.svg" data-width-cm="1.6" data-price="1900" data-tags="doré">
+              <img class="charm-card__img" src="assets/charms/coeur-rubis.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Cœur Rubis 2</span>
+              <span class="charm-card__price">19,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4008" data-variant-id="5008"
+                data-title="Étoile Or 2" data-image="assets/charms/etoile-or.svg" data-width-cm="1.6" data-price="1500" data-tags="doré">
+              <img class="charm-card__img" src="assets/charms/etoile-or.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Étoile Or 2</span>
+              <span class="charm-card__price">15,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4009" data-variant-id="5009"
+                data-title="Lune Argent 2" data-image="assets/charms/lune-argent.svg" data-width-cm="1.5" data-price="1700" data-tags="argenté">
+              <img class="charm-card__img" src="assets/charms/lune-argent.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Lune Argent 2</span>
+              <span class="charm-card__price">17,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4010" data-variant-id="5010"
+                data-title="Goutte Émeraude 2" data-image="assets/charms/goutte-emeraude.svg" data-width-cm="1.2" data-price="2400" data-tags="argenté">
+              <img class="charm-card__img" src="assets/charms/goutte-emeraude.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Goutte Émeraude 2</span>
+              <span class="charm-card__price">24,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4011" data-variant-id="5011"
+                data-title="Trèfle Or Rose 2" data-image="assets/charms/trefle-or-rose.svg" data-width-cm="1.6" data-price="1800" data-tags="doré">
+              <img class="charm-card__img" src="assets/charms/trefle-or-rose.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Trèfle Or Rose 2</span>
+              <span class="charm-card__price">18,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4012" data-variant-id="5012"
+                data-title="Ovale Saphir 2" data-image="assets/charms/ovale-saphir.svg" data-width-cm="1.3" data-price="2200" data-tags="argenté">
+              <img class="charm-card__img" src="assets/charms/ovale-saphir.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Ovale Saphir 2</span>
+              <span class="charm-card__price">22,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4013" data-variant-id="5013"
+                data-title="Cœur Rubis 3" data-image="assets/charms/coeur-rubis.svg" data-width-cm="1.6" data-price="1900" data-tags="doré">
+              <img class="charm-card__img" src="assets/charms/coeur-rubis.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Cœur Rubis 3</span>
+              <span class="charm-card__price">19,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4014" data-variant-id="5014"
+                data-title="Étoile Or 3" data-image="assets/charms/etoile-or.svg" data-width-cm="1.6" data-price="1500" data-tags="doré">
+              <img class="charm-card__img" src="assets/charms/etoile-or.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Étoile Or 3</span>
+              <span class="charm-card__price">15,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4015" data-variant-id="5015"
+                data-title="Lune Argent 3" data-image="assets/charms/lune-argent.svg" data-width-cm="1.5" data-price="1700" data-tags="argenté">
+              <img class="charm-card__img" src="assets/charms/lune-argent.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Lune Argent 3</span>
+              <span class="charm-card__price">17,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4016" data-variant-id="5016"
+                data-title="Goutte Émeraude 3" data-image="assets/charms/goutte-emeraude.svg" data-width-cm="1.2" data-price="2400" data-tags="argenté">
+              <img class="charm-card__img" src="assets/charms/goutte-emeraude.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Goutte Émeraude 3</span>
+              <span class="charm-card__price">24,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4017" data-variant-id="5017"
+                data-title="Trèfle Or Rose 3" data-image="assets/charms/trefle-or-rose.svg" data-width-cm="1.6" data-price="1800" data-tags="doré">
+              <img class="charm-card__img" src="assets/charms/trefle-or-rose.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Trèfle Or Rose 3</span>
+              <span class="charm-card__price">18,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4018" data-variant-id="5018"
+                data-title="Ovale Saphir 3" data-image="assets/charms/ovale-saphir.svg" data-width-cm="1.3" data-price="2200" data-tags="argenté">
+              <img class="charm-card__img" src="assets/charms/ovale-saphir.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Ovale Saphir 3</span>
+              <span class="charm-card__price">22,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4019" data-variant-id="5019"
+                data-title="Cœur Rubis 4" data-image="assets/charms/coeur-rubis.svg" data-width-cm="1.6" data-price="1900" data-tags="doré">
+              <img class="charm-card__img" src="assets/charms/coeur-rubis.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Cœur Rubis 4</span>
+              <span class="charm-card__price">19,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4020" data-variant-id="5020"
+                data-title="Étoile Or 4" data-image="assets/charms/etoile-or.svg" data-width-cm="1.6" data-price="1500" data-tags="doré">
+              <img class="charm-card__img" src="assets/charms/etoile-or.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Étoile Or 4</span>
+              <span class="charm-card__price">15,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4021" data-variant-id="5021"
+                data-title="Lune Argent 4" data-image="assets/charms/lune-argent.svg" data-width-cm="1.5" data-price="1700" data-tags="argenté">
+              <img class="charm-card__img" src="assets/charms/lune-argent.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Lune Argent 4</span>
+              <span class="charm-card__price">17,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4022" data-variant-id="5022"
+                data-title="Goutte Émeraude 4" data-image="assets/charms/goutte-emeraude.svg" data-width-cm="1.2" data-price="2400" data-tags="argenté">
+              <img class="charm-card__img" src="assets/charms/goutte-emeraude.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Goutte Émeraude 4</span>
+              <span class="charm-card__price">24,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4023" data-variant-id="5023"
+                data-title="Trèfle Or Rose 4" data-image="assets/charms/trefle-or-rose.svg" data-width-cm="1.6" data-price="1800" data-tags="doré">
+              <img class="charm-card__img" src="assets/charms/trefle-or-rose.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Trèfle Or Rose 4</span>
+              <span class="charm-card__price">18,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4024" data-variant-id="5024"
+                data-title="Ovale Saphir 4" data-image="assets/charms/ovale-saphir.svg" data-width-cm="1.3" data-price="2200" data-tags="argenté">
+              <img class="charm-card__img" src="assets/charms/ovale-saphir.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Ovale Saphir 4</span>
+              <span class="charm-card__price">22,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4025" data-variant-id="5025"
+                data-title="Cœur Rubis 5" data-image="assets/charms/coeur-rubis.svg" data-width-cm="1.6" data-price="1900" data-tags="doré">
+              <img class="charm-card__img" src="assets/charms/coeur-rubis.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Cœur Rubis 5</span>
+              <span class="charm-card__price">19,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4026" data-variant-id="5026"
+                data-title="Étoile Or 5" data-image="assets/charms/etoile-or.svg" data-width-cm="1.6" data-price="1500" data-tags="doré">
+              <img class="charm-card__img" src="assets/charms/etoile-or.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Étoile Or 5</span>
+              <span class="charm-card__price">15,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4027" data-variant-id="5027"
+                data-title="Lune Argent 5" data-image="assets/charms/lune-argent.svg" data-width-cm="1.5" data-price="1700" data-tags="argenté">
+              <img class="charm-card__img" src="assets/charms/lune-argent.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Lune Argent 5</span>
+              <span class="charm-card__price">17,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4028" data-variant-id="5028"
+                data-title="Goutte Émeraude 5" data-image="assets/charms/goutte-emeraude.svg" data-width-cm="1.2" data-price="2400" data-tags="argenté">
+              <img class="charm-card__img" src="assets/charms/goutte-emeraude.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Goutte Émeraude 5</span>
+              <span class="charm-card__price">24,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4029" data-variant-id="5029"
+                data-title="Trèfle Or Rose 5" data-image="assets/charms/trefle-or-rose.svg" data-width-cm="1.6" data-price="1800" data-tags="doré">
+              <img class="charm-card__img" src="assets/charms/trefle-or-rose.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Trèfle Or Rose 5</span>
+              <span class="charm-card__price">18,00&nbsp;€</span>
+            </li>
+            <li class="charm-card" data-jewel-charm data-id="4030" data-variant-id="5030"
+                data-title="Ovale Saphir 5" data-image="assets/charms/ovale-saphir.svg" data-width-cm="1.3" data-price="2200" data-tags="argenté">
+              <img class="charm-card__img" src="assets/charms/ovale-saphir.svg" alt="" loading="lazy">
+              <span class="charm-card__title">Ovale Saphir 5</span>
+              <span class="charm-card__price">22,00&nbsp;€</span>
+            </li>
+          </ul>
+          <p class="charm-empty" data-jewel-charm-empty hidden>Aucun charm pour ce filtre.</p>
+        </section>
+
+      </div>
+    </div>
+
+    <div class="sr-only" aria-live="polite" data-jewel-live></div>
+  </div>
+</body>
+</html>

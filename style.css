@@ -1,0 +1,896 @@
+/* ==========================================================================
+   Jewel Stage — styles du configurateur
+   Tout est préfixé par .jewel-app : rien ne déborde sur le thème Shopify
+   (seuls .jewel-drag-ghost et body.jewel-is-dragging vivent hors du composant).
+   Le texte hérite de la police du thème ; seuls les titres ont la leur.
+   Couleurs et tailles en variables : faciles à brancher plus tard sur les
+   réglages du thème Shopify. Pour changer de thème, il suffit de modifier
+   les --jewel-accent* (et --jewel-accent-rgb, utilisé pour les transparences).
+   ========================================================================== */
+
+.jewel-app {
+  /* Thème : bleu foncé */
+  --jewel-accent: #3c5a85;          /* traits, survols */
+  --jewel-accent-strong: #1e3a5f;   /* boutons, sélection, prix */
+  --jewel-accent-darker: #142a47;   /* survol des boutons */
+  --jewel-accent-rgb: 30 58 95;     /* = accent-strong, pour les transparences */
+
+  /* Neutres */
+  --jewel-bg: #f4f6f9;
+  --jewel-surface: #ffffff;
+  --jewel-surface-muted: #eaeef3;
+  --jewel-text: #1a2233;
+  --jewel-muted: #5b6678;
+  --jewel-border: #dde3eb;
+  --jewel-danger: #b3261e;
+  --jewel-shadow-rgb: 20 30 50;
+  --jewel-stage-light: #fbfcfd;
+  --jewel-stage-dark: #e2e7ee;
+  --jewel-radius: 16px;
+  --jewel-handle: 32px;
+  --jewel-rotate-stalk: 14px;
+  --jewel-panel-width: clamp(420px, 40vw, 540px);
+  --jewel-sticky-offset: 0px;       /* hauteur d'un en-tête de thème collant (réglage de la section Shopify) */
+  --jewel-stage-max: calc(100vh - 170px - var(--jewel-sticky-offset));   /* laisse la place au titre et au bouton Valider */
+  --jewel-font-display: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+  --jewel-zoom-button: 28px;
+}
+
+@supports (height: 100dvh) {
+  .jewel-app { --jewel-stage-max: calc(100dvh - 170px - var(--jewel-sticky-offset)); }
+}
+
+/* Poignées et boutons plus grands au doigt */
+@media (pointer: coarse) {
+  .jewel-app {
+    --jewel-handle: 40px;
+    --jewel-rotate-stalk: 22px;
+    --jewel-zoom-button: 34px;
+  }
+}
+
+.jewel-app,
+.jewel-app *,
+.jewel-app *::before,
+.jewel-app *::after { box-sizing: border-box; }
+
+.jewel-app [hidden] { display: none !important; }
+
+/* ---------- Mise en page ---------- */
+
+.jewel-app {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  color: var(--jewel-text);
+  line-height: 1.45;
+}
+
+/* Visible uniquement dans l'éditeur de thème, si une collection manque */
+.jewel-app .jewel-app__notice {
+  margin: 0;
+  padding: 12px 16px;
+  border: 1px dashed var(--jewel-accent);
+  border-radius: 12px;
+  background: var(--jewel-surface);
+  color: var(--jewel-muted);
+  font-size: .9rem;
+}
+
+.jewel-app .jewel-app__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.jewel-app .jewel-app__title {
+  margin: 0;
+  font-family: var(--jewel-font-display);
+  font-weight: 500;
+  font-size: clamp(1.5rem, 2.6vw, 2.1rem);
+  line-height: 1.1;
+  letter-spacing: .01em;
+}
+
+.jewel-app .jewel-app__main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--jewel-panel-width);
+  gap: 24px;
+  align-items: stretch;             /* les deux colonnes ont la même hauteur (voir .jewel-validate) */
+}
+
+/* ---------- Scène (toujours visible pendant les choix) ---------- */
+
+.jewel-app .stage-wrap {
+  position: sticky;
+  top: calc(20px + var(--jewel-sticky-offset));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* Cadre de la scène : porte la taille, et l'aide qui ne doit pas être rognée par la scène */
+.jewel-app .stage-frame {
+  position: relative;
+  width: min(100%, max(280px, var(--jewel-stage-max)));
+}
+
+.jewel-app .stage {
+  position: relative;
+  isolation: isolate;               /* les z-index des charms restent internes à la scène */
+  width: 100%;
+  aspect-ratio: 1 / 1;              /* scène carrée : la composition est identique à toutes les tailles */
+  overflow: hidden;
+  border-radius: var(--jewel-radius);
+  background:                       /* fond fixe : il ne suit pas le zoom (sinon ses bords se verraient au dézoom) */
+    var(--jewel-backdrop, none) center / cover no-repeat,
+    radial-gradient(circle at 50% 38%, var(--jewel-stage-light) 0%, var(--jewel-stage-dark) 78%);
+  box-shadow: inset 0 0 0 1px var(--jewel-border), 0 12px 32px rgb(var(--jewel-shadow-rgb) / .08);
+  touch-action: none;               /* les gestes tactiles sont gérés en JS */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: box-shadow .15s;
+}
+
+.jewel-app .stage.is-drop-target {
+  box-shadow: inset 0 0 0 3px var(--jewel-accent), 0 12px 32px rgb(var(--jewel-shadow-rgb) / .14);
+}
+
+/* Zoomé au-delà de 100 % : on déplace la vue en glissant dans le vide */
+.jewel-app .stage.is-zoomed { cursor: grab; }
+.jewel-app .stage.is-panning { cursor: grabbing; }
+
+/*
+  Vue zoomable : l'image du support. Le JS lui applique translate() + scale().
+  Pas de will-change : le navigateur figerait l'image à sa taille de départ (flou une fois zoomé).
+*/
+.jewel-app .stage__view {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+/* Boutons − / + : la vue et les charms glissent ensemble vers le nouveau zoom (même durée, même courbe) */
+@media (prefers-reduced-motion: no-preference) {
+  .jewel-app .stage.is-zoom-animating .stage__view { transition: transform .2s ease-out; }
+  .jewel-app .stage.is-zoom-animating .placed { transition: left .2s ease-out, top .2s ease-out, width .2s ease-out; }
+}
+
+/* Image du support (variante choisie) : couvre toute la scène */
+.jewel-app .stage__support {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  -webkit-user-drag: none;
+  filter: drop-shadow(0 3px 4px rgb(var(--jewel-shadow-rgb) / .18));
+  transition: opacity .2s;
+}
+
+.jewel-app .stage__support.is-loading { opacity: .3; }
+
+.jewel-app .stage__label {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  margin: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / .8);
+  color: var(--jewel-muted);
+  font-size: .75rem;
+  letter-spacing: .02em;
+  pointer-events: none;
+}
+
+.jewel-app .stage__label:empty { display: none; }
+
+/* ---------- Zoom de l'aperçu (coin bas gauche de la scène) ---------- */
+
+.jewel-app .stage-zoom {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--jewel-border);
+  border-radius: 999px;
+  background: rgb(255 255 255 / .85);
+  box-shadow: 0 2px 6px rgb(var(--jewel-shadow-rgb) / .12);
+}
+
+.jewel-app .stage-zoom__button {
+  display: grid;
+  place-items: center;
+  min-width: var(--jewel-zoom-button);
+  height: var(--jewel-zoom-button);
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--jewel-accent-strong);
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color .15s, opacity .15s;
+}
+
+.jewel-app .stage-zoom__button:hover { background: rgb(var(--jewel-accent-rgb) / .08); }
+
+.jewel-app .stage-zoom__button:focus-visible {
+  outline: 2px solid var(--jewel-accent-strong);
+  outline-offset: 1px;
+}
+
+/* aria-disabled plutôt que disabled : le bouton garde le focus clavier une fois la limite atteinte */
+.jewel-app .stage-zoom__button[aria-disabled="true"] {
+  opacity: .35;
+  background: transparent;
+  cursor: default;
+}
+
+/* Niveau actuel ; un clic revient à 100 % */
+.jewel-app .stage-zoom__level {
+  min-width: 48px;
+  padding: 0 4px;
+  font-size: .72rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Aide (bouton « ? » dans le coin de la scène) ---------- */
+
+.jewel-app .stage-info {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 5;
+}
+
+.jewel-app .stage-info__button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--jewel-border);
+  border-radius: 50%;
+  background: rgb(255 255 255 / .85);
+  color: var(--jewel-accent-strong);
+  font: inherit;
+  font-size: .9rem;
+  font-weight: 700;
+  cursor: help;
+  box-shadow: 0 2px 6px rgb(var(--jewel-shadow-rgb) / .12);
+}
+
+.jewel-app .stage-info__button:focus-visible {
+  outline: 2px solid var(--jewel-accent-strong);
+  outline-offset: 2px;
+}
+
+.jewel-app .stage-info__panel {
+  position: absolute;
+  right: 0;
+  bottom: 100%;                     /* la bulle s'ouvre au-dessus du bouton */
+  width: max-content;
+  max-width: min(420px, calc(100vw - 48px));
+  padding-bottom: 8px;              /* zone tampon : le survol ne se perd pas entre le bouton et la bulle */
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: opacity .15s, transform .15s, visibility .15s;
+}
+
+.jewel-app .stage-info.is-open .stage-info__panel {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+}
+
+@media (hover: hover) {
+  .jewel-app .stage-info:hover .stage-info__panel {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+  }
+}
+
+.jewel-app .stage-info__content {
+  padding: 12px 14px;
+  border: 1px solid var(--jewel-border);
+  border-radius: 12px;
+  background: var(--jewel-surface);
+  box-shadow: 0 12px 32px rgb(var(--jewel-shadow-rgb) / .18);
+}
+
+/* Instructions : une ligne par action ; la liste affichée dépend du type de pointeur */
+.jewel-app .stage-help {
+  display: grid;
+  gap: 2px;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--jewel-muted);
+  font-size: .8rem;
+  line-height: 1.4;
+}
+
+.jewel-app .stage-help strong {
+  color: var(--jewel-text);
+  font-weight: 600;
+}
+
+.jewel-app .stage-help--touch { display: none; }
+
+@media (pointer: coarse) {
+  .jewel-app .stage-help--mouse { display: none; }
+  .jewel-app .stage-help--touch { display: grid; }
+}
+
+.jewel-app kbd {
+  font: inherit;
+  font-size: .75rem;
+  padding: 1px 5px;
+  border: 1px solid var(--jewel-border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--jewel-surface);
+}
+
+/* ---------- Charm déposé sur la scène ---------- */
+
+.jewel-app .placed {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10%;
+  transform: translate(-50%, -50%);
+  cursor: grab;
+  outline: none;
+  touch-action: none;
+}
+
+.jewel-app .placed.is-active { cursor: grabbing; }
+
+.jewel-app .placed__img {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
+  filter: drop-shadow(0 4px 5px rgb(var(--jewel-shadow-rgb) / .28));
+}
+
+/* Cadre de sélection (tourne avec le charm) */
+.jewel-app .placed::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border: 1.5px dashed transparent;
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+@media (hover: hover) {
+  .jewel-app .placed:hover::after { border-color: rgb(var(--jewel-accent-rgb) / .4); }
+}
+
+.jewel-app .placed.is-selected::after { border-color: var(--jewel-accent); }
+.jewel-app .placed:focus-visible::after { border-style: solid; border-width: 2px; }
+
+/* Poignées : visibles uniquement sur le charm sélectionné */
+.jewel-app .placed__handle {
+  position: absolute;
+  display: none;
+  place-items: center;
+  width: var(--jewel-handle);
+  height: var(--jewel-handle);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--jewel-surface);
+  color: var(--jewel-accent-strong);
+  box-shadow: 0 0 0 1px var(--jewel-border), 0 2px 6px rgb(0 0 0 / .18);
+  font: inherit;
+  cursor: pointer;
+  touch-action: none;
+  z-index: 1;
+}
+
+.jewel-app .placed.is-selected .placed__handle { display: grid; }
+
+.jewel-app .placed__handle svg {
+  width: 55%;
+  height: 55%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.jewel-app .placed__handle:focus-visible {
+  outline: 2px solid var(--jewel-accent-strong);
+  outline-offset: 2px;
+}
+
+/* Décalées hors du charm : les charms sont petits, les poignées ne doivent pas se chevaucher */
+.jewel-app .placed__handle--delete {
+  top: 0;
+  left: 0;
+  transform: translate(-70%, -70%);
+  color: var(--jewel-danger);
+}
+
+.jewel-app .placed__handle--rotate {
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, calc(-100% - var(--jewel-rotate-stalk)));
+  cursor: grab;
+}
+
+/* Petit trait reliant la poignée de rotation au charm */
+.jewel-app .placed__handle--rotate::before {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: 1.5px;
+  height: var(--jewel-rotate-stalk);
+  background: var(--jewel-accent);
+  transform: translateX(-50%);
+}
+
+.jewel-app .placed__handle--resize {
+  right: 0;
+  bottom: 0;
+  transform: translate(70%, 70%);
+  cursor: nwse-resize;
+}
+
+/* ---------- Étapes ---------- */
+
+.jewel-app .steps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.jewel-app .step {
+  padding: 14px;
+  border: 1px solid var(--jewel-border);
+  border-radius: var(--jewel-radius);
+  background: var(--jewel-surface);
+}
+
+.jewel-app .step__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.jewel-app .step__number {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--jewel-accent-strong);
+  color: #fff;
+  font-size: .8rem;
+  font-weight: 600;
+}
+
+.jewel-app .step__title {
+  margin: 0;
+  font-family: var(--jewel-font-display);
+  font-weight: 500;
+  font-size: 1.2rem;
+  line-height: 1.2;
+}
+
+.jewel-app .step__summary {
+  margin-left: auto;
+  color: var(--jewel-muted);
+  font-size: .8rem;
+  text-align: right;
+}
+
+/* Cartes de choix (étapes 1 et 2) : de vrais boutons radio, masqués visuellement */
+.jewel-app .option-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  gap: 8px;
+}
+
+/* Étape 2 : une seule ligne, défilement horizontal dans l'encadré au-delà */
+.jewel-app .option-list--shapes {
+  --shape-columns: 5;               /* cartes visibles à la fois */
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: calc((100% - (var(--shape-columns) - 1) * 8px) / var(--shape-columns));
+  padding: 2px 2px 6px;             /* contour de focus + place pour la barre de défilement */
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  scrollbar-color: var(--jewel-border) transparent;
+}
+
+.jewel-app .option-list--shapes .option-card { scroll-snap-align: start; }
+
+.jewel-app .option-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border: 1.5px solid var(--jewel-border);
+  border-radius: 12px;
+  background: var(--jewel-bg);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color .15s, box-shadow .15s, background-color .15s;
+}
+
+.jewel-app .option-card:hover { border-color: rgb(var(--jewel-accent-rgb) / .45); }
+
+.jewel-app .option-card:has(.option-card__input:checked) {
+  border-color: var(--jewel-accent-strong);
+  background: var(--jewel-surface);
+  box-shadow: 0 0 0 2px rgb(var(--jewel-accent-rgb) / .18);
+}
+
+.jewel-app .option-card:has(.option-card__input:focus-visible) {
+  outline: 2px solid var(--jewel-accent-strong);
+  outline-offset: 2px;
+}
+
+.jewel-app .option-card__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.jewel-app .option-card__img {
+  width: 100%;
+  height: auto;                     /* ignore l'attribut height de l'img (Shopify) : c'est aspect-ratio qui décide */
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  border-radius: 8px;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+/* Vignette de support : sur le même fond que la scène */
+.jewel-app .option-card--shape .option-card__img {
+  background: var(--jewel-backdrop, none) center / cover no-repeat, var(--jewel-surface-muted);
+}
+
+.jewel-app .option-card__title {
+  font-size: .75rem;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.jewel-app .option-card__price,
+.jewel-app .charm-card__price {
+  font-size: .75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--jewel-accent-strong);
+  white-space: nowrap;
+}
+
+/* ---------- Filtre des charms (tags Shopify) ---------- */
+
+.jewel-app .charm-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.jewel-app .charm-filter__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.jewel-app .charm-filter__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid var(--jewel-border);
+  border-radius: 999px;
+  background: var(--jewel-bg);
+  color: var(--jewel-text);
+  font-size: .8rem;
+  line-height: 1.2;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color .15s, border-color .15s, color .15s;
+}
+
+.jewel-app .charm-filter__label:hover { border-color: rgb(var(--jewel-accent-rgb) / .45); }
+
+.jewel-app .charm-filter__input:checked + .charm-filter__label {
+  border-color: var(--jewel-accent-strong);
+  background: var(--jewel-accent-strong);
+  color: #fff;
+}
+
+.jewel-app .charm-filter__input:focus-visible + .charm-filter__label {
+  outline: 2px solid var(--jewel-accent-strong);
+  outline-offset: 2px;
+}
+
+.jewel-app .charm-filter__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / .15);
+}
+
+.jewel-app .charm-filter__swatch--silver { background: linear-gradient(135deg, #ffffff, #a9b2bc); }
+.jewel-app .charm-filter__swatch--gold { background: linear-gradient(135deg, #fff1c4, #c9962f); }
+
+.jewel-app .charm-empty {
+  margin: 0;
+  padding: 16px 0;
+  color: var(--jewel-muted);
+  font-size: .85rem;
+  text-align: center;
+}
+
+/* ---------- Charms (étape 3) : 6 par ligne, 2 lignes visibles, défilement dans l'encadré au-delà ---------- */
+
+.jewel-app .charm-list {
+  --charm-columns: 6;
+  --charm-rows: 2;
+  --charm-row-height: 104px;
+  --charm-gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(var(--charm-columns), minmax(0, 1fr));
+  grid-auto-rows: var(--charm-row-height);
+  gap: var(--charm-gap);
+  max-height: calc(var(--charm-rows) * var(--charm-row-height) + (var(--charm-rows) - 1) * var(--charm-gap) + 4px);
+  margin: 0;
+  padding: 2px;                     /* laisse de la place au contour de focus des cartes */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;         /* la grille ne bouge pas quand la barre de défilement apparaît */
+  scrollbar-width: thin;
+  scrollbar-color: var(--jewel-border) transparent;
+  list-style: none;
+}
+
+.jewel-app .charm-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 6px 4px;
+  border: 1px solid var(--jewel-border);
+  border-radius: 12px;
+  background: var(--jewel-bg);
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: pan-y;              /* panneau vertical : défiler en vertical, glisser vers la scène en horizontal */
+  transition: border-color .15s, box-shadow .15s, opacity .15s;
+}
+
+.jewel-app .charm-card:hover,
+.jewel-app .charm-card:focus-visible {
+  border-color: var(--jewel-accent);
+  box-shadow: 0 4px 12px rgb(var(--jewel-shadow-rgb) / .1);
+  outline: none;
+}
+
+.jewel-app .charm-card.is-source { opacity: .45; }
+
+.jewel-app .charm-card__img {
+  flex: 0 0 auto;
+  width: 100%;
+  height: 54px;
+  object-fit: contain;
+  pointer-events: none;
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
+}
+
+/* Titre sur une ligne (nom complet en infobulle, ajoutée par le JS) */
+.jewel-app .charm-card__title {
+  width: 100%;
+  overflow: hidden;
+  font-size: .72rem;
+  line-height: 1.2;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Validation ---------- */
+
+/* Sous la scène, à la même largeur qu'elle ; sa hauteur absorbe l'écart avec la colonne des étapes */
+.jewel-app .jewel-validate {
+  flex: 1 0 auto;
+  min-height: 52px;
+  width: min(100%, max(280px, var(--jewel-stage-max)));
+  padding: 14px 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--jewel-accent-strong);
+  color: #fff;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+  cursor: pointer;
+  transition: background-color .15s;
+}
+
+.jewel-app .jewel-validate:hover { background: var(--jewel-accent-darker); }
+
+.jewel-app .jewel-validate:focus-visible {
+  outline: 2px solid var(--jewel-accent-strong);
+  outline-offset: 3px;
+}
+
+/* ---------- Fantôme pendant le glisser d'un charm ---------- */
+
+.jewel-drag-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+  pointer-events: none;
+  opacity: .9;
+  filter: drop-shadow(0 8px 14px rgb(0 0 0 / .25));
+  will-change: transform;
+}
+
+.jewel-drag-ghost img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+body.jewel-is-dragging {
+  cursor: grabbing;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body.jewel-is-dragging * { cursor: grabbing !important; }
+
+/* ---------- Accessibilité ---------- */
+
+.jewel-app .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- Mobile / petite tablette ---------- */
+
+@media (max-width: 800px) {
+  .jewel-app { --jewel-stage-max: 46vh; }
+
+  .jewel-app { padding: 12px; gap: 12px; }
+
+  .jewel-app .jewel-app__main {
+    grid-template-columns: minmax(0, 1fr); /* empêche les bandeaux de cartes d'élargir la page */
+    gap: 12px;
+  }
+
+  /* La scène reste collée en haut pendant qu'on fait défiler les étapes */
+  .jewel-app .stage-wrap {
+    top: var(--jewel-sticky-offset);
+    z-index: 10;
+    gap: 6px;
+    margin: 0 -12px;
+    padding: 8px 12px;
+    background: var(--jewel-bg);
+    box-shadow: 0 8px 12px -10px rgb(var(--jewel-shadow-rgb) / .25);
+  }
+
+  .jewel-app .stage-help { font-size: .72rem; }
+
+  /* Un élément ramené à l'écran (Tab, scrollIntoView) s'arrête sous la scène collée, pas dessous */
+  .jewel-app .step,
+  .jewel-app .option-card,
+  .jewel-app .charm-card {
+    scroll-margin-top: calc(min(100vw - 24px, var(--jewel-stage-max)) + 96px + var(--jewel-sticky-offset));
+  }
+
+  .jewel-app .jewel-validate { min-height: 44px; padding: 11px 20px; }
+
+  .jewel-app .step { padding: 12px; }
+  .jewel-app .step__header { margin-bottom: 8px; }
+  .jewel-app .step__title { font-size: 1.05rem; }
+
+  /* Étapes 1 et 2 : bandeaux horizontaux */
+  .jewel-app .option-list {
+    display: flex;
+    gap: 8px;
+    padding-bottom: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x proximity;
+    overscroll-behavior-x: contain;
+  }
+
+  .jewel-app .option-card {
+    flex: 0 0 92px;
+    scroll-snap-align: start;
+  }
+
+  /* Étape 3 : toujours 2 lignes, mais les colonnes défilent à l'horizontale (6 colonnes ne tiennent pas) */
+  .jewel-app .charm-list {
+    grid-auto-flow: column;
+    grid-template-columns: none;
+    grid-template-rows: repeat(var(--charm-rows), var(--charm-row-height));
+    grid-auto-columns: 84px;
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-gutter: auto;
+    scroll-snap-type: x proximity;
+    overscroll-behavior-x: contain;
+  }
+
+  .jewel-app .charm-card {
+    scroll-snap-align: start;
+    touch-action: pan-x;            /* défiler en horizontal, glisser vers le haut pour poser un charm */
+  }
+}
+
+/* ---------- Fond de scène par défaut ----------
+   assets/scene/fond.svg, intégré ici : aucune image à installer sur Shopify.
+   Une image choisie dans l'éditeur de thème (réglage « Fond de la scène ») le remplace.
+   Si fond.svg change, régénérer cette ligne. */
+.jewel-app { --jewel-backdrop: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 800' width='800' height='800'%3E%3Cg stroke-width='.6' stroke-linejoin='round'%3E%3Cpath d='M0 0L108.8 0L74.9 63.4Z' fill='%23f4f7f9' stroke='%23f4f7f9'/%3E%3Cpath d='M0 0L74.9 63.4L0 104.9Z' fill='%23f7f9fb' stroke='%23f7f9fb'/%3E%3Cpath d='M108.8 0L179.8 0L74.9 63.4Z' fill='%23eceff4' stroke='%23eceff4'/%3E%3Cpath d='M179.8 0L179.8 69.8L74.9 63.4Z' fill='%23f7f8fb' stroke='%23f7f8fb'/%3E%3Cpath d='M179.8 0L241.6 0L265.5 80.8Z' fill='%23f7f9fb' stroke='%23f7f9fb'/%3E%3Cpath d='M179.8 0L265.5 80.8L179.8 69.8Z' fill='%23f6f8fb' stroke='%23f6f8fb'/%3E%3Cpath d='M241.6 0L358.7 0L265.5 80.8Z' fill='%23f3f6f9' stroke='%23f3f6f9'/%3E%3Cpath d='M358.7 0L371.8 107.4L265.5 80.8Z' fill='%23f3f6f9' stroke='%23f3f6f9'/%3E%3Cpath d='M358.7 0L435.2 0L426.5 112.7Z' fill='%23f3f6f9' stroke='%23f3f6f9'/%3E%3Cpath d='M358.7 0L426.5 112.7L371.8 107.4Z' fill='%23f5f7fa' stroke='%23f5f7fa'/%3E%3Cpath d='M435.2 0L546 0L426.5 112.7Z' fill='%23f4f6f9' stroke='%23f4f6f9'/%3E%3Cpath d='M546 0L559.8 91.6L426.5 112.7Z' fill='%23f3f6f9' stroke='%23f3f6f9'/%3E%3Cpath d='M546 0L595.9 0L647.8 108.1Z' fill='%23eef1f5' stroke='%23eef1f5'/%3E%3Cpath d='M546 0L647.8 108.1L559.8 91.6Z' fill='%23ebeef3' stroke='%23ebeef3'/%3E%3Cpath d='M595.9 0L732.4 0L647.8 108.1Z' fill='%23ebeff4' stroke='%23ebeff4'/%3E%3Cpath d='M732.4 0L699.6 83.1L647.8 108.1Z' fill='%23f5f7fa' stroke='%23f5f7fa'/%3E%3Cpath d='M732.4 0L800 0L800 79.8Z' fill='%23e3e8ee' stroke='%23e3e8ee'/%3E%3Cpath d='M732.4 0L800 79.8L699.6 83.1Z' fill='%23e4e9ef' stroke='%23e4e9ef'/%3E%3Cpath d='M0 104.9L74.9 63.4L0 165.1Z' fill='%23ecf0f4' stroke='%23ecf0f4'/%3E%3Cpath d='M74.9 63.4L108.8 197.4L0 165.1Z' fill='%23f6f8fa' stroke='%23f6f8fa'/%3E%3Cpath d='M74.9 63.4L179.8 69.8L174.6 159.6Z' fill='%23f5f7fa' stroke='%23f5f7fa'/%3E%3Cpath d='M74.9 63.4L174.6 159.6L108.8 197.4Z' fill='%23f4f7fa' stroke='%23f4f7fa'/%3E%3Cpath d='M179.8 69.8L265.5 80.8L174.6 159.6Z' fill='%23f5f7fa' stroke='%23f5f7fa'/%3E%3Cpath d='M265.5 80.8L281.5 196.4L174.6 159.6Z' fill='%23f4f6f9' stroke='%23f4f6f9'/%3E%3Cpath d='M265.5 80.8L371.8 107.4L380.3 192Z' fill='%23edf0f5' stroke='%23edf0f5'/%3E%3Cpath d='M265.5 80.8L380.3 192L281.5 196.4Z' fill='%23eef1f5' stroke='%23eef1f5'/%3E%3Cpath d='M371.8 107.4L426.5 112.7L380.3 192Z' fill='%23eff2f6' stroke='%23eff2f6'/%3E%3Cpath d='M426.5 112.7L456.1 183.1L380.3 192Z' fill='%23eff2f6' stroke='%23eff2f6'/%3E%3Cpath d='M426.5 112.7L559.8 91.6L541.9 179.2Z' fill='%23edf0f4' stroke='%23edf0f4'/%3E%3Cpath d='M426.5 112.7L541.9 179.2L456.1 183.1Z' fill='%23eef1f5' stroke='%23eef1f5'/%3E%3Cpath d='M559.8 91.6L647.8 108.1L541.9 179.2Z' fill='%23e4e9ef' stroke='%23e4e9ef'/%3E%3Cpath d='M647.8 108.1L623.8 203.9L541.9 179.2Z' fill='%23e6ebf0' stroke='%23e6ebf0'/%3E%3Cpath d='M647.8 108.1L699.6 83.1L728.4 197.1Z' fill='%23ebeff3' stroke='%23ebeff3'/%3E%3Cpath d='M647.8 108.1L728.4 197.1L623.8 203.9Z' fill='%23eaeef3' stroke='%23eaeef3'/%3E%3Cpath d='M699.6 83.1L800 79.8L728.4 197.1Z' fill='%23e3e9ef' stroke='%23e3e9ef'/%3E%3Cpath d='M800 79.8L800 189.6L728.4 197.1Z' fill='%23e9edf2' stroke='%23e9edf2'/%3E%3Cpath d='M0 165.1L108.8 197.4L83.9 291.4Z' fill='%23f4f7fa' stroke='%23f4f7fa'/%3E%3Cpath d='M0 165.1L83.9 291.4L0 272.8Z' fill='%23f6f8fa' stroke='%23f6f8fa'/%3E%3Cpath d='M108.8 197.4L174.6 159.6L83.9 291.4Z' fill='%23f5f7fa' stroke='%23f5f7fa'/%3E%3Cpath d='M174.6 159.6L201.4 257.3L83.9 291.4Z' fill='%23f4f7f9' stroke='%23f4f7f9'/%3E%3Cpath d='M174.6 159.6L281.5 196.4L266.6 242.8Z' fill='%23f2f5f8' stroke='%23f2f5f8'/%3E%3Cpath d='M174.6 159.6L266.6 242.8L201.4 257.3Z' fill='%23f5f7fa' stroke='%23f5f7fa'/%3E%3Cpath d='M281.5 196.4L380.3 192L266.6 242.8Z' fill='%23e9edf2' stroke='%23e9edf2'/%3E%3Cpath d='M380.3 192L347.4 260.5L266.6 242.8Z' fill='%23e8ecf1' stroke='%23e8ecf1'/%3E%3Cpath d='M380.3 192L456.1 183.1L467.4 261Z' fill='%23f1f4f7' stroke='%23f1f4f7'/%3E%3Cpath d='M380.3 192L467.4 261L347.4 260.5Z' fill='%23eff3f6' stroke='%23eff3f6'/%3E%3Cpath d='M456.1 183.1L541.9 179.2L467.4 261Z' fill='%23eef2f5' stroke='%23eef2f5'/%3E%3Cpath d='M541.9 179.2L528.1 279.9L467.4 261Z' fill='%23e8ecf2' stroke='%23e8ecf2'/%3E%3Cpath d='M541.9 179.2L623.8 203.9L612.3 276.6Z' fill='%23e8ecf1' stroke='%23e8ecf1'/%3E%3Cpath d='M541.9 179.2L612.3 276.6L528.1 279.9Z' fill='%23e7ebf1' stroke='%23e7ebf1'/%3E%3Cpath d='M623.8 203.9L728.4 197.1L612.3 276.6Z' fill='%23eaeef3' stroke='%23eaeef3'/%3E%3Cpath d='M728.4 197.1L705.1 292.6L612.3 276.6Z' fill='%23e6ebf0' stroke='%23e6ebf0'/%3E%3Cpath d='M728.4 197.1L800 189.6L800 260.1Z' fill='%23e7ecf1' stroke='%23e7ecf1'/%3E%3Cpath d='M728.4 197.1L800 260.1L705.1 292.6Z' fill='%23e9edf2' stroke='%23e9edf2'/%3E%3Cpath d='M0 272.8L83.9 291.4L0 356.9Z' fill='%23eff2f6' stroke='%23eff2f6'/%3E%3Cpath d='M83.9 291.4L77.6 350.3L0 356.9Z' fill='%23f1f4f7' stroke='%23f1f4f7'/%3E%3Cpath d='M83.9 291.4L201.4 257.3L165.1 346.4Z' fill='%23f2f5f8' stroke='%23f2f5f8'/%3E%3Cpath d='M83.9 291.4L165.1 346.4L77.6 350.3Z' fill='%23eff2f6' stroke='%23eff2f6'/%3E%3Cpath d='M201.4 257.3L266.6 242.8L165.1 346.4Z' fill='%23f0f4f7' stroke='%23f0f4f7'/%3E%3Cpath d='M266.6 242.8L261.7 352L165.1 346.4Z' fill='%23f2f5f8' stroke='%23f2f5f8'/%3E%3Cpath d='M266.6 242.8L347.4 260.5L370.4 360.2Z' fill='%23edf0f4' stroke='%23edf0f4'/%3E%3Cpath d='M266.6 242.8L370.4 360.2L261.7 352Z' fill='%23ecf0f4' stroke='%23ecf0f4'/%3E%3Cpath d='M347.4 260.5L467.4 261L370.4 360.2Z' fill='%23f1f4f7' stroke='%23f1f4f7'/%3E%3Cpath d='M467.4 261L430.9 337.1L370.4 360.2Z' fill='%23e2e7ee' stroke='%23e2e7ee'/%3E%3Cpath d='M467.4 261L528.1 279.9L552.2 377.6Z' fill='%23e9edf2' stroke='%23e9edf2'/%3E%3Cpath d='M467.4 261L552.2 377.6L430.9 337.1Z' fill='%23eaeef3' stroke='%23eaeef3'/%3E%3Cpath d='M528.1 279.9L612.3 276.6L552.2 377.6Z' fill='%23eaeef3' stroke='%23eaeef3'/%3E%3Cpath d='M612.3 276.6L613.6 358.4L552.2 377.6Z' fill='%23dae1e9' stroke='%23dae1e9'/%3E%3Cpath d='M612.3 276.6L705.1 292.6L692 374.9Z' fill='%23e5e9ef' stroke='%23e5e9ef'/%3E%3Cpath d='M612.3 276.6L692 374.9L613.6 358.4Z' fill='%23e6ebf0' stroke='%23e6ebf0'/%3E%3Cpath d='M705.1 292.6L800 260.1L692 374.9Z' fill='%23eaeef2' stroke='%23eaeef2'/%3E%3Cpath d='M800 260.1L800 359.6L692 374.9Z' fill='%23dee4eb' stroke='%23dee4eb'/%3E%3Cpath d='M0 356.9L77.6 350.3L105.3 470.9Z' fill='%23f2f5f8' stroke='%23f2f5f8'/%3E%3Cpath d='M0 356.9L105.3 470.9L0 450.2Z' fill='%23f4f6f9' stroke='%23f4f6f9'/%3E%3Cpath d='M77.6 350.3L165.1 346.4L105.3 470.9Z' fill='%23f2f5f8' stroke='%23f2f5f8'/%3E%3Cpath d='M165.1 346.4L166.1 433.4L105.3 470.9Z' fill='%23dfe5ec' stroke='%23dfe5ec'/%3E%3Cpath d='M165.1 346.4L261.7 352L278.1 431.8Z' fill='%23e8ecf1' stroke='%23e8ecf1'/%3E%3Cpath d='M165.1 346.4L278.1 431.8L166.1 433.4Z' fill='%23e9edf2' stroke='%23e9edf2'/%3E%3Cpath d='M261.7 352L370.4 360.2L278.1 431.8Z' fill='%23e6ebf0' stroke='%23e6ebf0'/%3E%3Cpath d='M370.4 360.2L369.9 464L278.1 431.8Z' fill='%23e9edf2' stroke='%23e9edf2'/%3E%3Cpath d='M370.4 360.2L430.9 337.1L462.4 459.8Z' fill='%23ecf0f4' stroke='%23ecf0f4'/%3E%3Cpath d='M370.4 360.2L462.4 459.8L369.9 464Z' fill='%23eaeef3' stroke='%23eaeef3'/%3E%3Cpath d='M430.9 337.1L552.2 377.6L462.4 459.8Z' fill='%23eef1f5' stroke='%23eef1f5'/%3E%3Cpath d='M552.2 377.6L546 462.7L462.4 459.8Z' fill='%23dae0e9' stroke='%23dae0e9'/%3E%3Cpath d='M552.2 377.6L613.6 358.4L600.2 465.5Z' fill='%23dee4eb' stroke='%23dee4eb'/%3E%3Cpath d='M552.2 377.6L600.2 465.5L546 462.7Z' fill='%23e3e8ee' stroke='%23e3e8ee'/%3E%3Cpath d='M613.6 358.4L692 374.9L600.2 465.5Z' fill='%23eaeef3' stroke='%23eaeef3'/%3E%3Cpath d='M692 374.9L688.9 421.9L600.2 465.5Z' fill='%23d3dae4' stroke='%23d3dae4'/%3E%3Cpath d='M692 374.9L800 359.6L800 446.4Z' fill='%23e5eaf0' stroke='%23e5eaf0'/%3E%3Cpath d='M692 374.9L800 446.4L688.9 421.9Z' fill='%23dee4eb' stroke='%23dee4eb'/%3E%3Cpath d='M0 450.2L105.3 470.9L0 516.4Z' fill='%23e9edf2' stroke='%23e9edf2'/%3E%3Cpath d='M105.3 470.9L104.5 538.5L0 516.4Z' fill='%23e9edf2' stroke='%23e9edf2'/%3E%3Cpath d='M105.3 470.9L166.1 433.4L196.5 542.8Z' fill='%23e8ecf1' stroke='%23e8ecf1'/%3E%3Cpath d='M105.3 470.9L196.5 542.8L104.5 538.5Z' fill='%23e4e9ef' stroke='%23e4e9ef'/%3E%3Cpath d='M166.1 433.4L278.1 431.8L196.5 542.8Z' fill='%23ecf0f4' stroke='%23ecf0f4'/%3E%3Cpath d='M278.1 431.8L275.6 536.7L196.5 542.8Z' fill='%23e9edf2' stroke='%23e9edf2'/%3E%3Cpath d='M278.1 431.8L369.9 464L346.3 517.8Z' fill='%23e9edf2' stroke='%23e9edf2'/%3E%3Cpath d='M278.1 431.8L346.3 517.8L275.6 536.7Z' fill='%23e8ecf1' stroke='%23e8ecf1'/%3E%3Cpath d='M369.9 464L462.4 459.8L346.3 517.8Z' fill='%23f0f4f7' stroke='%23f0f4f7'/%3E%3Cpath d='M462.4 459.8L429.3 555.1L346.3 517.8Z' fill='%23dfe5ec' stroke='%23dfe5ec'/%3E%3Cpath d='M462.4 459.8L546 462.7L529.7 507.7Z' fill='%23d9e0e8' stroke='%23d9e0e8'/%3E%3Cpath d='M462.4 459.8L529.7 507.7L429.3 555.1Z' fill='%23d9dfe8' stroke='%23d9dfe8'/%3E%3Cpath d='M546 462.7L600.2 465.5L529.7 507.7Z' fill='%23e6ebf0' stroke='%23e6ebf0'/%3E%3Cpath d='M600.2 465.5L643.5 522.2L529.7 507.7Z' fill='%23e1e7ed' stroke='%23e1e7ed'/%3E%3Cpath d='M600.2 465.5L688.9 421.9L719.4 542.4Z' fill='%23dce2ea' stroke='%23dce2ea'/%3E%3Cpath d='M600.2 465.5L719.4 542.4L643.5 522.2Z' fill='%23e1e7ed' stroke='%23e1e7ed'/%3E%3Cpath d='M688.9 421.9L800 446.4L719.4 542.4Z' fill='%23e4e9ef' stroke='%23e4e9ef'/%3E%3Cpath d='M800 446.4L800 516.2L719.4 542.4Z' fill='%23d3dae4' stroke='%23d3dae4'/%3E%3Cpath d='M0 516.4L104.5 538.5L72 608.7Z' fill='%23eaeef3' stroke='%23eaeef3'/%3E%3Cpath d='M0 516.4L72 608.7L0 614.8Z' fill='%23eaeef2' stroke='%23eaeef2'/%3E%3Cpath d='M104.5 538.5L196.5 542.8L72 608.7Z' fill='%23e3e8ee' stroke='%23e3e8ee'/%3E%3Cpath d='M196.5 542.8L157.7 640.5L72 608.7Z' fill='%23e8ecf1' stroke='%23e8ecf1'/%3E%3Cpath d='M196.5 542.8L275.6 536.7L257.7 603.7Z' fill='%23e7ebf1' stroke='%23e7ebf1'/%3E%3Cpath d='M196.5 542.8L257.7 603.7L157.7 640.5Z' fill='%23e6ebf0' stroke='%23e6ebf0'/%3E%3Cpath d='M275.6 536.7L346.3 517.8L257.7 603.7Z' fill='%23e8ecf1' stroke='%23e8ecf1'/%3E%3Cpath d='M346.3 517.8L334.7 635.7L257.7 603.7Z' fill='%23e6ebf0' stroke='%23e6ebf0'/%3E%3Cpath d='M346.3 517.8L429.3 555.1L424.1 605.2Z' fill='%23e2e8ee' stroke='%23e2e8ee'/%3E%3Cpath d='M346.3 517.8L424.1 605.2L334.7 635.7Z' fill='%23e2e8ee' stroke='%23e2e8ee'/%3E%3Cpath d='M429.3 555.1L529.7 507.7L424.1 605.2Z' fill='%23e1e7ed' stroke='%23e1e7ed'/%3E%3Cpath d='M529.7 507.7L513.6 644.5L424.1 605.2Z' fill='%23e5eaef' stroke='%23e5eaef'/%3E%3Cpath d='M529.7 507.7L643.5 522.2L598 632.5Z' fill='%23e4e9ef' stroke='%23e4e9ef'/%3E%3Cpath d='M529.7 507.7L598 632.5L513.6 644.5Z' fill='%23e5eaf0' stroke='%23e5eaf0'/%3E%3Cpath d='M643.5 522.2L719.4 542.4L598 632.5Z' fill='%23d8dfe7' stroke='%23d8dfe7'/%3E%3Cpath d='M719.4 542.4L695.5 638.8L598 632.5Z' fill='%23e5eaef' stroke='%23e5eaef'/%3E%3Cpath d='M719.4 542.4L800 516.2L800 618.3Z' fill='%23e0e6ed' stroke='%23e0e6ed'/%3E%3Cpath d='M719.4 542.4L800 618.3L695.5 638.8Z' fill='%23dfe5ec' stroke='%23dfe5ec'/%3E%3Cpath d='M0 614.8L72 608.7L0 695.8Z' fill='%23e1e7ed' stroke='%23e1e7ed'/%3E%3Cpath d='M72 608.7L102.6 700.4L0 695.8Z' fill='%23e5eaf0' stroke='%23e5eaf0'/%3E%3Cpath d='M72 608.7L157.7 640.5L183.1 711.4Z' fill='%23e1e7ed' stroke='%23e1e7ed'/%3E%3Cpath d='M72 608.7L183.1 711.4L102.6 700.4Z' fill='%23e4e9ef' stroke='%23e4e9ef'/%3E%3Cpath d='M157.7 640.5L257.7 603.7L183.1 711.4Z' fill='%23e0e6ed' stroke='%23e0e6ed'/%3E%3Cpath d='M257.7 603.7L276.3 706.7L183.1 711.4Z' fill='%23e5eaf0' stroke='%23e5eaf0'/%3E%3Cpath d='M257.7 603.7L334.7 635.7L352.2 706.3Z' fill='%23ebeff3' stroke='%23ebeff3'/%3E%3Cpath d='M257.7 603.7L352.2 706.3L276.3 706.7Z' fill='%23e8ecf1' stroke='%23e8ecf1'/%3E%3Cpath d='M334.7 635.7L424.1 605.2L352.2 706.3Z' fill='%23e8ecf2' stroke='%23e8ecf2'/%3E%3Cpath d='M424.1 605.2L438.2 693.9L352.2 706.3Z' fill='%23e1e7ed' stroke='%23e1e7ed'/%3E%3Cpath d='M424.1 605.2L513.6 644.5L536.3 700.5Z' fill='%23e7ecf1' stroke='%23e7ecf1'/%3E%3Cpath d='M424.1 605.2L536.3 700.5L438.2 693.9Z' fill='%23e4e9ef' stroke='%23e4e9ef'/%3E%3Cpath d='M513.6 644.5L598 632.5L536.3 700.5Z' fill='%23e7ecf1' stroke='%23e7ecf1'/%3E%3Cpath d='M598 632.5L646.3 710.9L536.3 700.5Z' fill='%23d5dce6' stroke='%23d5dce6'/%3E%3Cpath d='M598 632.5L695.5 638.8L715.8 721.9Z' fill='%23dce2ea' stroke='%23dce2ea'/%3E%3Cpath d='M598 632.5L715.8 721.9L646.3 710.9Z' fill='%23d5dce6' stroke='%23d5dce6'/%3E%3Cpath d='M695.5 638.8L800 618.3L715.8 721.9Z' fill='%23d3dae4' stroke='%23d3dae4'/%3E%3Cpath d='M800 618.3L800 730.1L715.8 721.9Z' fill='%23dae0e9' stroke='%23dae0e9'/%3E%3Cpath d='M0 695.8L102.6 700.4L95 800Z' fill='%23e7ebf1' stroke='%23e7ebf1'/%3E%3Cpath d='M0 695.8L95 800L0 800Z' fill='%23e8ecf1' stroke='%23e8ecf1'/%3E%3Cpath d='M102.6 700.4L183.1 711.4L95 800Z' fill='%23e2e7ee' stroke='%23e2e7ee'/%3E%3Cpath d='M183.1 711.4L164 800L95 800Z' fill='%23e8ecf1' stroke='%23e8ecf1'/%3E%3Cpath d='M183.1 711.4L276.3 706.7L286.2 800Z' fill='%23e5eaf0' stroke='%23e5eaf0'/%3E%3Cpath d='M183.1 711.4L286.2 800L164 800Z' fill='%23e4e9ef' stroke='%23e4e9ef'/%3E%3Cpath d='M276.3 706.7L352.2 706.3L286.2 800Z' fill='%23e5eaf0' stroke='%23e5eaf0'/%3E%3Cpath d='M352.2 706.3L340.7 800L286.2 800Z' fill='%23e0e6ed' stroke='%23e0e6ed'/%3E%3Cpath d='M352.2 706.3L438.2 693.9L470.2 800Z' fill='%23dbe1e9' stroke='%23dbe1e9'/%3E%3Cpath d='M352.2 706.3L470.2 800L340.7 800Z' fill='%23d8dfe8' stroke='%23d8dfe8'/%3E%3Cpath d='M438.2 693.9L536.3 700.5L470.2 800Z' fill='%23dfe5ec' stroke='%23dfe5ec'/%3E%3Cpath d='M536.3 700.5L557.7 800L470.2 800Z' fill='%23d9dfe8' stroke='%23d9dfe8'/%3E%3Cpath d='M536.3 700.5L646.3 710.9L600.3 800Z' fill='%23d8dfe8' stroke='%23d8dfe8'/%3E%3Cpath d='M536.3 700.5L600.3 800L557.7 800Z' fill='%23dbe1e9' stroke='%23dbe1e9'/%3E%3Cpath d='M646.3 710.9L715.8 721.9L600.3 800Z' fill='%23e3e8ee' stroke='%23e3e8ee'/%3E%3Cpath d='M715.8 721.9L702.3 800L600.3 800Z' fill='%23d7dde7' stroke='%23d7dde7'/%3E%3Cpath d='M715.8 721.9L800 730.1L800 800Z' fill='%23d3dae4' stroke='%23d3dae4'/%3E%3Cpath d='M715.8 721.9L800 800L702.3 800Z' fill='%23d3dae4' stroke='%23d3dae4'/%3E%3C/g%3E%3C/svg%3E"); }

@@ -1,0 +1,400 @@
+{%- comment -%}
+  Jewel Stage — configurateur de bijoux : chaîne → support → charms.
+  Même HTML que le prototype (index.html), généré depuis deux collections choisies dans l'éditeur de thème :
+    Chaînes : un produit par chaîne (étape 1) ; ses variantes sont les supports (étape 2).
+    Charms  : une vignette par variante disponible (ex. une par couleur ; une seule si le charm n'a pas de variantes).
+  Seuls les produits et variantes disponibles à la vente sont affichés (250 par collection au maximum).
+
+  Métachamps facultatifs (Paramètres › Métachamps et métaobjets) :
+    Variantes  custom.largeur_scene_cm  Décimal         largeur réelle représentée par l'image de scène, en cm
+               custom.image_scene       Fichier (image) image du support sur la scène ; sinon image de la variante, puis du produit
+    Produits   custom.largeur_cm        Décimal         largeur réelle du charm, en cm (commune à toutes ses variantes)
+               custom.image_scene       Fichier (image) image du charm sur la scène, pour toutes ses variantes
+    Image d'un charm sur la scène : image_scene de la variante, sinon celle du produit,
+    sinon image de la variante, sinon image principale du produit.
+
+  Fichiers liés : assets/jewel-stage.css (= style.css du prototype), assets/jewel-stage.js (= script.js)
+{%- endcomment -%}
+
+{{ 'jewel-stage.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'jewel-stage.js' | asset_url }}" defer="defer"></script>
+
+{%- comment -%}
+  Collections relues par leur handle : paginate ignore la taille de page sur une collection
+  venant directement d'un réglage (on serait bloqué à 50 produits).
+{%- endcomment -%}
+{%- if section.settings.chains_collection != blank -%}
+  {%- assign chains = collections[section.settings.chains_collection.handle] -%}
+  {%- paginate chains.products by 250 -%}
+    {%- assign chain_products = chains.products | where: 'available' -%}
+  {%- endpaginate -%}
+{%- endif -%}
+{%- if section.settings.charms_collection != blank -%}
+  {%- assign charms = collections[section.settings.charms_collection.handle] -%}
+  {%- paginate charms.products by 250 -%}
+    {%- assign charm_products = charms.products | where: 'available' -%}
+  {%- endpaginate -%}
+{%- endif -%}
+
+{%- liquid
+  assign default_charm_cm = section.settings.default_charm_mm | divided_by: 10.0
+  assign background = section.settings.background_color
+-%}
+
+{%- comment -%} Sans image choisie, le fond par défaut est celui intégré à jewel-stage.css {%- endcomment -%}
+{% style %}
+  #shopify-section-{{ section.id }} .jewel-app {
+    {%- if section.settings.backdrop != blank %}
+      --jewel-backdrop: url('{{ section.settings.backdrop | image_url: width: 2048 }}');
+    {%- endif %}
+    --jewel-sticky-offset: {{ section.settings.sticky_offset }}px;
+    {%- if background != blank %}
+      --jewel-bg: {{ background }};
+    {%- endif %}
+  }
+  {%- if background != blank %}
+    #shopify-section-{{ section.id }} { background: {{ background }}; }
+  {%- endif %}
+{% endstyle %}
+
+<div class="jewel-app" data-jewel-app>
+  {%- if section.settings.heading != blank -%}
+    <header class="jewel-app__header">
+      <h1 class="jewel-app__title">{{ section.settings.heading | escape }}</h1>
+    </header>
+  {%- endif -%}
+
+  {%- if request.design_mode -%}
+    {%- if chain_products == blank or charm_products == blank -%}
+      <p class="jewel-app__notice">
+        Configurateur : choisissez dans les réglages de la section une collection de chaînes et une collection de charms
+        contenant des produits disponibles à la vente. (Ce message n’est visible que dans l’éditeur de thème.)
+      </p>
+    {%- endif -%}
+  {%- endif -%}
+
+  <div class="jewel-app__main">
+
+    {%- comment -%} Aperçu : le support (variante choisie) + les charms déposés {%- endcomment -%}
+    <section class="stage-wrap" aria-label="Aperçu du bijou">
+      <div class="stage-frame">
+        <div class="stage" data-jewel-stage></div>
+
+        <div class="stage-zoom" role="group" aria-label="Zoom de l’aperçu" data-jewel-zoom>
+          <button type="button" class="stage-zoom__button" data-zoom="out" aria-label="Dézoomer">−</button>
+          <button type="button" class="stage-zoom__button stage-zoom__level" data-zoom="reset" aria-label="Revenir à 100 %">100&nbsp;%</button>
+          <button type="button" class="stage-zoom__button" data-zoom="in" aria-label="Zoomer">+</button>
+        </div>
+
+        <div class="stage-info" data-jewel-info>
+          <button type="button" class="stage-info__button" aria-label="Aide : comment utiliser l’aperçu"
+                  aria-expanded="false" aria-controls="JewelHelp-{{ section.id }}">?</button>
+          <div class="stage-info__panel" id="JewelHelp-{{ section.id }}">
+            <div class="stage-info__content">
+              <ul class="stage-help stage-help--mouse">
+                <li><strong>Ajouter</strong> : glissez un charm sur le bijou, ou cliquez dessus</li>
+                <li><strong>Déplacer</strong> : glissez le charm, ou touches fléchées</li>
+                <li><strong>Taille</strong> : poignée d’angle, molette, ou <kbd>+</kbd> / <kbd>−</kbd></li>
+                <li><strong>Rotation</strong> : poignée du haut, <kbd>Maj</kbd> + molette, ou <kbd>R</kbd></li>
+                <li><strong>Retirer</strong> : bouton ✕, double-clic, ou <kbd>Suppr</kbd></li>
+                <li><strong>Désélectionner</strong> : clic dans le vide, ou <kbd>Échap</kbd></li>
+                <li><strong>Zoom</strong> : boutons − / +, ou <kbd>Ctrl</kbd> + molette hors d’un charm ; glissez dans le vide pour vous déplacer</li>
+              </ul>
+              <ul class="stage-help stage-help--touch">
+                <li><strong>Ajouter</strong> : glissez un charm vers le bijou, ou touchez-le</li>
+                <li><strong>Déplacer</strong> : glissez le charm avec un doigt</li>
+                <li><strong>Taille et rotation</strong> : pincez et tournez à deux doigts</li>
+                <li><strong>Retirer</strong> : bouton ✕, ou touchez deux fois le charm</li>
+                <li><strong>Zoom</strong> : boutons − / +, ou pincez hors d’un charm ; glissez dans le vide pour vous déplacer</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {%- comment -%} Sans action pour l'instant ; plus tard : ajout au panier à partir de JewelStage.getComposition() {%- endcomment -%}
+      <button type="button" class="jewel-validate" data-jewel-action="validate">{{ section.settings.validate_label | escape }}</button>
+    </section>
+
+    <div class="steps">
+
+      {%- comment -%} ============ Étape 1 : la chaîne (un produit de la collection) ============ {%- endcomment -%}
+      <section class="step" aria-labelledby="JewelChainTitle-{{ section.id }}">
+        <header class="step__header">
+          <span class="step__number" aria-hidden="true">1</span>
+          <h2 class="step__title" id="JewelChainTitle-{{ section.id }}">Choisissez votre chaîne</h2>
+          <span class="step__summary" data-jewel-summary="chain"></span>
+        </header>
+
+        <div class="option-list" role="radiogroup" aria-labelledby="JewelChainTitle-{{ section.id }}" data-jewel-chains>
+          {%- for product in chain_products -%}
+            <label class="option-card" data-jewel-chain data-id="{{ product.id }}" data-title="{{ product.title | escape }}">
+              <input class="option-card__input" type="radio" name="jewel-chain-{{ section.id }}" value="{{ product.id }}"
+                     {%- if forloop.first %} checked{% endif %}>
+              {%- if product.featured_image -%}
+                <img class="option-card__img" src="{{ product.featured_image | image_url: width: 240 }}" alt="" loading="lazy" width="240" height="240">
+              {%- endif -%}
+              <span class="option-card__title">{{ product.title | escape }}</span>
+            </label>
+          {%- endfor -%}
+        </div>
+      </section>
+
+      {%- comment -%}
+        ============ Étape 2 : le support (variantes de la chaîne choisie) ============
+        Toutes les variantes de toutes les chaînes ; le JS n'affiche que celles de la chaîne choisie.
+        data-image    : image de scène, affichée sur toute la scène (carrée) ; assez grande pour le zoom
+        data-stage-cm : largeur réelle représentée par cette image, en cm (met les charms à l'échelle)
+        data-price    : prix en centimes (pour le JS) ; le prix affiché est formaté par | money
+      {%- endcomment -%}
+      <section class="step" aria-labelledby="JewelVariantTitle-{{ section.id }}">
+        <header class="step__header">
+          <span class="step__number" aria-hidden="true">2</span>
+          <h2 class="step__title" id="JewelVariantTitle-{{ section.id }}">Choisissez le support</h2>
+          <span class="step__summary" data-jewel-summary="variant"></span>
+        </header>
+
+        <div class="option-list option-list--shapes" role="radiogroup" aria-labelledby="JewelVariantTitle-{{ section.id }}" data-jewel-variants>
+          {%- for product in chain_products -%}
+            {%- assign variants = product.variants | where: 'available' -%}
+            {%- for variant in variants -%}
+              {%- liquid
+                assign scene_image = variant.metafields.custom.image_scene.value | default: variant.featured_image | default: product.featured_image
+                assign stage_cm = variant.metafields.custom.largeur_scene_cm.value | default: section.settings.default_stage_cm
+                assign variant_title = variant.title
+                if product.has_only_default_variant
+                  assign variant_title = product.title
+                endif
+              -%}
+              <label class="option-card option-card--shape" data-jewel-variant
+                     data-chain-id="{{ product.id }}"
+                     data-id="{{ variant.id }}"
+                     data-title="{{ variant_title | escape }}"
+                     data-image="{% if scene_image %}{{ scene_image | image_url: width: 2048 }}{% endif %}"
+                     data-stage-cm="{{ stage_cm }}"
+                     data-price="{{ variant.price }}"
+                     {%- unless forloop.parentloop.first %} hidden{% endunless %}>
+                <input class="option-card__input" type="radio" name="jewel-variant-{{ section.id }}" value="{{ variant.id }}"
+                       {%- if forloop.parentloop.first and forloop.first %} checked{% endif %}>
+                {%- if scene_image -%}
+                  <img class="option-card__img" src="{{ scene_image | image_url: width: 240 }}" alt="" loading="lazy" width="240" height="240">
+                {%- endif -%}
+                <span class="option-card__title">{{ variant_title | escape }}</span>
+                <span class="option-card__price">{{ variant.price | money }}</span>
+              </label>
+            {%- endfor -%}
+          {%- endfor -%}
+        </div>
+      </section>
+
+      {%- comment -%} ============ Étape 3 : les charms (produits de la collection) ============ {%- endcomment -%}
+      <section class="step" aria-labelledby="JewelCharmsTitle-{{ section.id }}">
+        <header class="step__header">
+          <span class="step__number" aria-hidden="true">3</span>
+          <h2 class="step__title" id="JewelCharmsTitle-{{ section.id }}">Ajoutez vos charms</h2>
+          <span class="step__summary" data-jewel-summary="charms"></span>
+        </header>
+
+        {%- comment -%} Filtres : un bloc « Filtre de charms » par groupe de balises (casse et accents ignorés) {%- endcomment -%}
+        {%- if section.blocks.size > 0 -%}
+          <div class="charm-filter" role="radiogroup" aria-label="Filtrer les charms" data-jewel-charm-filter>
+            <label class="charm-filter__option">
+              <input class="charm-filter__input" type="radio" name="jewel-charm-filter-{{ section.id }}" value="" checked>
+              <span class="charm-filter__label">Tous</span>
+            </label>
+            {%- for block in section.blocks -%}
+              <label class="charm-filter__option" {{ block.shopify_attributes }}>
+                <input class="charm-filter__input" type="radio" name="jewel-charm-filter-{{ section.id }}" value="{{ block.settings.tag | escape }}">
+                <span class="charm-filter__label">
+                  {%- if block.settings.swatch != blank -%}
+                    <span class="charm-filter__swatch" style="background: linear-gradient(135deg, #ffffff, {{ block.settings.swatch }});" aria-hidden="true"></span>
+                  {%- endif -%}
+                  {{- block.settings.title | escape -}}
+                </span>
+              </label>
+            {%- endfor -%}
+          </div>
+        {%- endif -%}
+
+        {%- comment -%}
+          Une vignette par variante disponible : « Étoile de mer coloré – Rouge », « – Jaune »…
+          data-variant-id : la variante à ajouter au panier plus tard
+          data-width-cm   : largeur réelle de l'image du charm, en cm
+          data-tags       : balises du produit séparées par des virgules (utilisées par le filtre)
+        {%- endcomment -%}
+        <ul class="charm-list" data-jewel-charms>
+          {%- for product in charm_products -%}
+            {%- liquid
+              assign variants = product.variants | where: 'available'
+              assign width_cm = product.metafields.custom.largeur_cm.value | default: default_charm_cm
+              assign tags = product.tags | join: ','
+            -%}
+            {%- for variant in variants -%}
+              {%- liquid
+                assign scene_image = variant.metafields.custom.image_scene.value | default: product.metafields.custom.image_scene.value | default: variant.featured_image | default: product.featured_image
+                assign charm_title = product.title
+                unless product.has_only_default_variant
+                  assign charm_title = product.title | append: ' – ' | append: variant.title
+                endunless
+              -%}
+              <li class="charm-card" data-jewel-charm
+                  data-id="{{ product.id }}"
+                  data-variant-id="{{ variant.id }}"
+                  data-title="{{ charm_title | escape }}"
+                  data-image="{% if scene_image %}{{ scene_image | image_url: width: 800 }}{% endif %}"
+                  data-width-cm="{{ width_cm }}"
+                  data-price="{{ variant.price }}"
+                  data-tags="{{ tags | escape }}">
+                {%- if scene_image -%}
+                  <img class="charm-card__img" src="{{ scene_image | image_url: width: 240 }}" alt="" loading="lazy" width="240" height="240">
+                {%- endif -%}
+                <span class="charm-card__title">{{ charm_title | escape }}</span>
+                <span class="charm-card__price">{{ variant.price | money }}</span>
+              </li>
+            {%- endfor -%}
+          {%- endfor -%}
+        </ul>
+        <p class="charm-empty" data-jewel-charm-empty hidden>Aucun charm pour ce filtre.</p>
+      </section>
+
+    </div>
+  </div>
+
+  <div class="sr-only" aria-live="polite" data-jewel-live></div>
+</div>
+
+{% schema %}
+{
+  "name": "Configurateur bijou",
+  "class": "jewel-stage-section",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Produits"
+    },
+    {
+      "type": "collection",
+      "id": "chains_collection",
+      "label": "Collection des chaînes",
+      "info": "Étape 1 : un produit par chaîne. Ses variantes (bracelet, collier…) forment l'étape 2."
+    },
+    {
+      "type": "collection",
+      "id": "charms_collection",
+      "label": "Collection des charms",
+      "info": "Étape 3 : un produit par charm."
+    },
+    {
+      "type": "range",
+      "id": "default_stage_cm",
+      "label": "Largeur de scène par défaut",
+      "info": "Pour les variantes sans métachamp custom.largeur_scene_cm.",
+      "min": 5,
+      "max": 40,
+      "step": 1,
+      "unit": "cm",
+      "default": 18
+    },
+    {
+      "type": "range",
+      "id": "default_charm_mm",
+      "label": "Largeur d'un charm par défaut",
+      "info": "Pour les charms sans métachamp custom.largeur_cm.",
+      "min": 5,
+      "max": 50,
+      "step": 1,
+      "unit": "mm",
+      "default": 15
+    },
+    {
+      "type": "header",
+      "content": "Apparence"
+    },
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Titre",
+      "default": "Je crée mon bijou"
+    },
+    {
+      "type": "text",
+      "id": "validate_label",
+      "label": "Texte du bouton",
+      "default": "Valider"
+    },
+    {
+      "type": "image_picker",
+      "id": "backdrop",
+      "label": "Fond de la scène",
+      "info": "Image carrée. Sans image : le fond par défaut du configurateur."
+    },
+    {
+      "type": "color",
+      "id": "background_color",
+      "label": "Couleur de fond de la section",
+      "default": "#f4f6f9"
+    },
+    {
+      "type": "range",
+      "id": "sticky_offset",
+      "label": "Décalage sous l'en-tête collant",
+      "info": "Si l'en-tête du thème reste collé en haut de l'écran et cache le haut de l'aperçu, indiquez sa hauteur.",
+      "min": 0,
+      "max": 200,
+      "step": 4,
+      "unit": "px",
+      "default": 0
+    }
+  ],
+  "blocks": [
+    {
+      "type": "filter",
+      "name": "Filtre de charms",
+      "settings": [
+        {
+          "type": "text",
+          "id": "title",
+          "label": "Libellé",
+          "default": "Doré"
+        },
+        {
+          "type": "text",
+          "id": "tag",
+          "label": "Balises",
+          "info": "Affiche les charms portant l'une de ces balises, séparées par des virgules (majuscules et accents ignorés).",
+          "default": "Charms dorée, Italians charms dorées"
+        },
+        {
+          "type": "color",
+          "id": "swatch",
+          "label": "Pastille de couleur (facultative)"
+        }
+      ]
+    }
+  ],
+  "max_blocks": 12,
+  "presets": [
+    {
+      "name": "Configurateur bijou",
+      "blocks": [
+        {
+          "type": "filter",
+          "settings": {
+            "title": "Argenté",
+            "tag": "Charms argenté, Italians charms argentés",
+            "swatch": "#a9b2bc"
+          }
+        },
+        {
+          "type": "filter",
+          "settings": {
+            "title": "Doré",
+            "tag": "Charms dorée, Italians charms dorées",
+            "swatch": "#c9962f"
+          }
+        }
+      ]
+    }
+  ]
+}
+{% endschema %}

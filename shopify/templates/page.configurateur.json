@@ -1,0 +1,33 @@
+{
+  "sections": {
+    "main": {
+      "type": "jewel-stage",
+      "blocks": {
+        "filtre-argente": {
+          "type": "filter",
+          "settings": {
+            "title": "Argenté",
+            "tag": "Charms argenté, Italians charms argentés",
+            "swatch": "#a9b2bc"
+          }
+        },
+        "filtre-dore": {
+          "type": "filter",
+          "settings": {
+            "title": "Doré",
+            "tag": "Charms dorée, Italians charms dorées",
+            "swatch": "#c9962f"
+          }
+        }
+      },
+      "block_order": [
+        "filtre-argente",
+        "filtre-dore"
+      ],
+      "settings": {}
+    }
+  },
+  "order": [
+    "main"
+  ]
+}
